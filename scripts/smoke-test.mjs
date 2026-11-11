@@ -150,11 +150,23 @@ const requireStub = (request) => {
 requireStub.asset = (ref) => `#asset:${ref}`;
 
 const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub };
-/** 同源 fetch stub：list 路由返回空导入表。 */
+/** 同源 fetch stub：list 路由返回鲸鱼娘（源文字色不可直接进暗壳的回归样例）。 */
 const fetchCalls = [];
 function fetchStub(path, init) {
 	fetchCalls.push({ path, init });
-	return Promise.resolve({ ok: true, json: async () => ({ themes: [] }) });
+	return Promise.resolve({
+		ok: true,
+		json: async () => ({
+			themes: [
+				{
+					id: "codex-deepseek",
+					name: "DeepSeek-鲸鱼娘",
+					image: "background.jpg",
+					colors: { background: "#cdd7e1", text: "#352970", muted: "#030303", accent: "#bf7a40" },
+				},
+			],
+		}),
+	});
 }
 windowStub.__ModuleLoader__ = { load(row) { loaded.push(row); } };
 vm.createContext(context);
@@ -377,6 +389,31 @@ assert.equal(htmlEl.style.map.size, 0, "canvas vars cleared");
 assert.equal(overrideLayer, null, "override layer removed");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "off", "row back to off");
 
+// ---------- 场景 9：导入主题双壳适配（鲸鱼娘回归：源色不直通暗壳/浅壳） ----------
+await new Promise((resolve) => setImmediate(resolve)); // flush refreshImported 链
+rerender(pageComponent); // setImportedList 触发的重渲染
+const grids2 = [...allNodes(pageTree)].filter((n) => n.props.className === "dsb_panelGrid" && Array.isArray(n.children));
+assert.equal(grids2.length, 2, "builtin grid + imported grid");
+const importedCards = grids2[1].children.filter((n) => n.type === "button");
+assert.equal(importedCards.length, 1, "whale card rendered");
+assert.equal(importedCards[0].children[1].children[0], "DeepSeek-鲸鱼娘", "imported card label");
+importedCards[0].props.onClick();
+assert.deepEqual(formWrites, [{ field: "theme", value: "codex-deepseek" }], "imported card picks via configForms");
+formWrites.length = 0;
+settingsValue = { theme: "codex-deepseek" };
+for (const fn of formListeners) fn();
+assert.equal(overrideLayer.source, "dsh-dream-skin");
+const labels = overrideLayer.tokens["--dsw-alias-label-primary"];
+assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");
+assert.ok(labels.dark.startsWith("hsl(") && /90\.0%/.test(labels.dark), "dark label derived at fixed readable lightness (upstream rule)");
+assert.equal(labels.light, "#352970", "light shell passes the dark source text through (upstream rule: lum 0.035 <= 0.62 → readable on light scrim)");
+assert.ok(!overrideLayer.tokens["--dsw-alias-label-secondary"].dark.startsWith("#030303"), "near-black muted never passes through");
+const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
+const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
+assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");
+assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
+assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg")', "imported asset URL via own Host route (not require.asset pipeline)");
+
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
@@ -388,3 +425,4 @@ assert.equal(htmlEl.attrs.has("data-dsb-on"), false);
 assert.equal(htmlEl.style.map.size, 0);
 
 console.log("smoke-test: 8 scenarios passed ✓");
+

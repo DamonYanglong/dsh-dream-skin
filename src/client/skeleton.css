@@ -23,11 +23,13 @@
  */
 
 /* ---- 画布三层（渐变1, 渐变2, 艺术图）----
- * 消费方是 html：--dsb-* 变量由 applyTheme 挂在 documentElement 上。 */
+ * 消费方是 html：--dsb-* 变量由 applyTheme 挂在 documentElement 上。
+ * attachment fixed = 背景钉在视口（随窗口 cover 自适应、不随内容流偏移）。 */
 html[data-dsb-on] {
   background-size: auto, auto, cover !important;
   background-position: center, center, var(--dsb-bg-pos) !important;
   background-repeat: no-repeat !important;
+  background-attachment: fixed, fixed, fixed !important;
 }
 
 /* html 画布之下不允许 body/#root 再铺实底（否则盖住背景图；无皮肤时不生效）。 */
