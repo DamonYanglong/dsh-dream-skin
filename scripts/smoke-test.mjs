@@ -1,19 +1,17 @@
 #!/usr/bin/env node
 /**
- * dsh-dream-skin · client bundle 冒烟测试（零依赖，v4 契约）
+ * dsh-dream-skin · client bundle 冒烟测试（零依赖，v5 契约）
  *
- * stub 层实现「权威文档契约」（v2 逆向 store 契约的路线已废弃：
- * 第一方 defineStore/inject(actions) 组装是平台内部通道，不对第三方开放）：
+ * stub 层实现「权威文档契约」（slot-catalog.ts 源码 + ui-settings/slots 文档）：
  * - require 白名单仅 react：出现任何其他 external require 直接失败
  *   （practices.md：禁止把 Harness Client 包当模块加载）。
- * - slots.register 只收 {name,id,order,label}（Slots 在线目录），
- *   物化 = 无 props 渲染组件（ui-settings-general：「registrant owns its row copy
- *   and behavior」——宿主不传 store/actions/t）。
- * - configForms.get(entryId) 返回 {getSnapshot,subscribe,set}（ui-settings README）。
- * - locale.register(ns,dicts) + bind(ns) → t（Client Service 目录）。
- * - react stub 实现 createElement/useState/useEffect，setState 触发重渲染，
- *   验证行组件自身跟随表单镜像。
- * 场景：挂载生效 → 设置行注册/无 props 渲染 → off 完整还原 → 写路径 → dispose 清理。
+ * - settings.general.item：注册选项 {name,id,order,label}，无 props 物化，
+ *   行自绘自管（catalog 原话：owner passes no props at all）。
+ * - sidebar.panellist：id 即面板 id，图标收 {size, active} owner props。
+ * - main：keyed by 面板 id，无 props 物化（skill-explorer 同款已验证模式）。
+ * - configForms.get(entryId) → {getSnapshot,subscribe,set}；locale.register/bind。
+ * - react stub：createElement + 按组件隔离的 useState/useEffect，setState 重渲染。
+ * 场景：挂载 → 设置行 → 面板图标/页面 → off 完整还原 → 写路径 → dispose 清理。
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -24,36 +22,62 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const bundle = readFileSync(join(root, "lib/client.js"), "utf8");
 
-// ---------- stub react（createElement + 可重渲染的 useState + useEffect） ----------
-let currentTree = null;
-const rowState = { initialized: false, value: undefined };
+// ---------- stub react（createElement + 按组件隔离的 hooks + setState 重渲染） ----------
+const hookStates = new Map(); // component -> {initialized, value}
+const renderCounts = new Map(); // component -> 已渲染次数
 const effectCleanups = [];
-let renderCount = 0;
-const rerenderRow = () => {
-	assert.ok(rerenderRow.component, "setState outside a rendered component");
-	currentTree = rerenderRow.component();
-	renderCount++;
+let rendering = null;
+const renderTree = (component, props) => {
+	rendering = component;
+	try {
+		const tree = component(props);
+		renderCounts.set(component, (renderCounts.get(component) ?? 0) + 1);
+		return tree;
+	} finally {
+		rendering = null;
+	}
 };
+const rerender = (component) => {
+	if (component === rowComponent) rowTree = renderTree(component);
+	if (component === pageComponent) pageTree = renderTree(component);
+};
+let rowComponent = null;
+let pageComponent = null;
+let rowTree = null;
+let pageTree = null;
 const reactStub = {
+	/** DOM 元素构造节点；函数组件就地求值（hooks 归属该组件）。 */
 	createElement(type, props, ...children) {
+		if (typeof type === "function") {
+			const outer = rendering;
+			rendering = type;
+			try {
+				return type({ ...props, children: children.length <= 1 ? children[0] : children });
+			} finally {
+				rendering = outer;
+			}
+		}
 		return { type, props: props ?? {}, children: children.flat() };
 	},
 	useState(init) {
-		if (!rowState.initialized) {
-			rowState.value = typeof init === "function" ? init() : init;
-			rowState.initialized = true;
+		const st = hookStates.get(rendering) ?? { initialized: false, value: undefined };
+		hookStates.set(rendering, st);
+		if (!st.initialized) {
+			st.value = typeof init === "function" ? init() : init;
+			st.initialized = true;
 		}
+		const component = rendering;
 		return [
-			rowState.value,
+			st.value,
 			(next) => {
-				rowState.value = typeof next === "function" ? next(rowState.value) : next;
-				rerenderRow();
+				st.value = typeof next === "function" ? next(st.value) : next;
+				if (component) rerender(component);
 			},
 		];
 	},
 	/** 真实语义按 deps（组件内均为 []）只在首次挂载渲染时执行一次。 */
 	useEffect(fn) {
-		if (renderCount === 0) effectCleanups.push(fn() ?? null);
+		if ((renderCounts.get(rendering) ?? 0) === 0) effectCleanups.push(fn() ?? null);
 	},
 };
 
@@ -126,7 +150,8 @@ let overrideLayer = null;
 const formListeners = new Set();
 const formWrites = [];
 let settingsValue;
-let registration = null;
+/** slot name -> {options, Component}（物化 = 渲染）。 */
+const registrations = new Map();
 const localeRegistry = new Map();
 let currentLocale = "zh";
 
@@ -172,16 +197,15 @@ const ctx = {
 	},
 	slots: {
 		inject(slotName, register) {
-			assert.equal(slotName, "settings.general.item");
-			registration = register();
+			registrations.set(slotName, register());
 		},
-		/** 宿主物化 = 无 props 渲染（registrant 自绘行；不传 store/actions/t）。 */
+		/** 宿主物化 = 渲染组件（settings 行/面板页无 props；图标收 {size,active}）。 */
 		register(options, Component) {
-			assert.equal(typeof Component, "function", "row component must be a function");
+			assert.equal(typeof Component, "function", "component must be a function");
 			for (const key of Object.keys(options)) {
 				assert.ok(
-					["name", "id", "order", "label"].includes(key),
-					`registration option '${key}' is not in the documented contract (id/order/label)`,
+					["name", "id", "order", "label", "key"].includes(key),
+					`registration option '${key}' is not in the documented contract`,
 				);
 			}
 			return { options, Component };
@@ -204,8 +228,13 @@ function findNode(node, pred) {
 	}
 	return null;
 }
-const byClass = (cls) => (n) => n.type === "div" && n.props.className === cls;
-const selectNode = (n) => n.type === "select";
+const byClass = (cls) => (n) => n.props.className === cls;
+const byTag = (tag) => (n) => n.type === tag;
+const allNodes = function* (node) {
+	if (!node || typeof node !== "object") return;
+	yield node;
+	for (const child of node.children ?? []) yield* allNodes(child);
+};
 
 // ---------- 场景 1：settings 未就绪（mirror value undefined）→ off，不抛 ----------
 exports.apply(ctx);
@@ -217,23 +246,42 @@ assert.equal(overrideLayer, null);
 assert.ok(localeRegistry.has("dsh-dream-skin"), "locale dictionaries registered");
 assert.equal(typeof windowStub.__dsb__, "object", "debug handle exposed");
 
-// ---------- 场景 2：设置行注册（仅 id/order/label）+ 无 props 渲染 ----------
-assert.ok(registration, "settings row registered");
-assert.equal(registration.options.id, "dream-skin");
-assert.equal(registration.options.name, "settings.general.item");
-assert.equal(typeof registration.options.label, "function", "label is a locale-following thunk");
-assert.equal(registration.options.label(), "皮肤", "label thunk resolves via locale");
-rerenderRow.component = registration.Component;
-rerenderRow(); // 宿主物化：无 props（renderCount 0 → 1，effect 仅此一次）
-assert.ok(findNode(currentTree, byClass("dsb_settingsRowTitle")), "row renders its own title");
-assert.ok(findNode(currentTree, byClass("dsb_settingsRowTitle")).children.includes("皮肤"), "title copy from locale");
-const select1 = findNode(currentTree, selectNode);
-assert.ok(select1, "row renders its own select control");
-assert.equal(select1.props.value, "off", "select follows form mirror (off)");
-const optionLabels = select1.children.map((o) => o.children[0]);
-assert.deepEqual(optionLabels, ["官方默认", "Gothic Void Crusade"], "options: off + built themes");
+// ---------- 场景 2：三处注册齐全（行 + 侧栏图标 + 主栏页面） ----------
+assert.ok(registrations.has("settings.general.item"), "settings row registered");
+assert.ok(registrations.has("sidebar.panellist"), "sidebar icon registered");
+assert.ok(registrations.has("main"), "main page registered");
+const row = registrations.get("settings.general.item");
+const icon = registrations.get("sidebar.panellist");
+const page = registrations.get("main");
+assert.equal(row.options.id, "dream-skin");
+assert.equal(typeof row.options.label, "function", "row label thunk");
+assert.equal(row.options.label(), "皮肤");
+assert.equal(icon.options.id, "dsh-dream-skin", "panel id = package id");
+assert.equal(typeof icon.options.label, "function");
+assert.equal(page.options.key, "dsh-dream-skin", "main keyed by panel id");
 
-// ---------- 场景 3：表单推送到主题 → 画布生效 + 行自订阅重渲染 ----------
+// ---------- 场景 3：设置行无 props 物化渲染 ----------
+rowComponent = row.Component;
+rowTree = renderTree(rowComponent);
+assert.ok(findNode(rowTree, byClass("dsb_settingsRowTitle")).children.includes("皮肤"), "row renders its own title");
+const select1 = findNode(rowTree, byTag("select"));
+assert.equal(select1.props.value, "off");
+assert.deepEqual(select1.children.map((o) => o.children[0]), ["官方默认", "Gothic Void Crusade"]);
+
+// ---------- 场景 4：图标收 {size, active}；页面无 props 渲染主题卡 ----------
+const iconTree = renderTree(icon.Component, { size: 20, active: false });
+assert.equal(iconTree.type, "svg");
+assert.equal(iconTree.props.width, 20);
+pageComponent = page.Component;
+pageTree = renderTree(pageComponent);
+const cardsOff = [...allNodes(pageTree)].filter((n) => n.type === "button" && String(n.props.className).includes("dsb_card"));
+assert.equal(cardsOff.length, 2, "off card + 1 theme card");
+const activeClasses = cardsOff.map((c) => String(c.props.className).includes("dsb_cardActive"));
+assert.deepEqual(activeClasses, [true, false], "off card is active initially");
+const themeCard = cardsOff[1];
+assert.ok(themeCard.children[0].props.style.backgroundImage.includes("#asset:"), "theme card thumbnail uses asset URL");
+
+// ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
@@ -243,30 +291,36 @@ assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw-static-neutral-bluish-1000)");
-assert.equal(findNode(currentTree, selectNode).props.value, "gothic-void-crusade", "row re-rendered via its own subscription");
+assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
+assert.ok(
+	String(findNode(pageTree, byClass("dsb_panelGrid")).children[1].props.className).includes("dsb_cardActive"),
+	"page re-rendered: theme card active",
+);
 // 幂等：同值不重复注册覆盖层
 for (const fn of formListeners) fn();
 assert.ok(overrideLayer && !overrideLayer.disposed);
 
-// ---------- 场景 4：行内 select 提交 → 走 configForms 写路径，未知 id 不写 ----------
-const select2 = findNode(currentTree, selectNode);
-select2.props.onChange({ target: { value: "off" } });
-select2.props.onChange({ target: { value: "nope" } });
-assert.deepEqual(formWrites, [{ field: "theme", value: "off" }], "only valid ids reach the settings write");
+// ---------- 场景 6：行 select / 页面卡片 → 走 configForms 写路径，未知 id 不写 ----------
+findNode(rowTree, byTag("select")).props.onChange({ target: { value: "off" } });
+findNode(rowTree, byTag("select")).props.onChange({ target: { value: "nope" } });
+assert.deepEqual(formWrites, [{ field: "theme", value: "off" }], "row select writes valid ids only");
 formWrites.length = 0;
-windowStub.__dsb__.setTheme("gothic-void-crusade");
+[...allNodes(pageTree)].filter((n) => n.type === "button" && String(n.props.className).includes("dsb_card"))[1].props.onClick();
+assert.deepEqual(formWrites, [{ field: "theme", value: "gothic-void-crusade" }], "theme card click writes");
+formWrites.length = 0;
+windowStub.__dsb__.setTheme("off");
 windowStub.__dsb__.setTheme("nope");
-assert.deepEqual(formWrites, [{ field: "theme", value: "gothic-void-crusade" }], "debug handle writes valid ids only");
+assert.deepEqual(formWrites, [{ field: "theme", value: "off" }], "debug handle writes valid ids only");
 
-// ---------- 场景 5：切回 off → 完整还原 ----------
+// ---------- 场景 7：切回 off → 完整还原 ----------
 settingsValue = { theme: "off" };
 for (const fn of formListeners) fn();
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "gate removed");
 assert.equal(bodyEl.style.map.size, 0, "canvas vars cleared");
 assert.equal(overrideLayer, null, "override layer removed");
-assert.equal(findNode(currentTree, selectNode).props.value, "off", "row back to off");
+assert.equal(findNode(rowTree, byTag("select")).props.value, "off", "row back to off");
 
-// ---------- 场景 6：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
+// ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
 assert.ok(overrideLayer && !overrideLayer.disposed);
@@ -276,4 +330,4 @@ assert.equal(windowStub.__dsb__, undefined, "debug handle removed on dispose");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false);
 assert.equal(bodyEl.style.map.size, 0);
 
-console.log("smoke-test: 6 scenarios passed ✓");
+console.log("smoke-test: 8 scenarios passed ✓");

@@ -93,3 +93,68 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
   font-size: var(--dsh-content-font-size, 14px);
   min-width: 140px;
 }
+
+/* ---- 皮肤面板（main 栏整页；不挂 data-dsb-on 门控：off 态也要正常渲染；
+        色值全走语义 token，官方壳与皮肤壳下都成立）---- */
+.dsb_panel {
+  padding: 24px 28px;
+  max-width: 720px;
+  color: var(--dsw-alias-label-primary);
+}
+.dsb_panelTitle {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.dsb_panelSubtitle {
+  margin: 0 0 20px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size, 14px);
+}
+.dsb_panelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.dsb_card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md, 10px);
+  transition: border-color 0.15s;
+}
+.dsb_card:hover {
+  border-color: var(--dsw-alias-border-l3);
+}
+.dsb_cardActive {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
+}
+.dsb_cardThumb {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--dsw-radius-sm, 6px);
+  background-size: cover;
+  background-position: var(--dsb-bg-pos, center);
+  background-color: var(--dsw-alias-bg-layer-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dsb_cardOffGlyph {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+.dsb_cardName {
+  font-size: var(--dsh-content-font-size, 14px);
+}
+.dsb_cardHint {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}

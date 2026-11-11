@@ -47,15 +47,25 @@ const BG_URL = __BG_URL_PLACEHOLDER__;
 /** 骨架 CSS 消费的 body 内联变量（teardown 时逐一清除）。 */
 const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb"];
 
-/** 设置行文案（M2：zh/en 先行，M4 分发前补齐 locale/*.json 八语）。 */
+/** 设置行 + 面板文案（M2：zh/en 先行，M4 分发前补齐 locale/*.json 八语）。 */
 const LOCALE = {
 	zh: {
 		"row.title": "皮肤",
 		"row.theme.off": "官方默认",
+		"panel.label": "皮肤",
+		"panel.title": "皮肤",
+		"panel.subtitle": "为整个界面换上背景图与主题色",
+		"panel.theme.off": "官方默认",
+		"panel.theme.off.hint": "还原官方外观",
 	},
 	en: {
 		"row.title": "Skin",
 		"row.theme.off": "Official default",
+		"panel.label": "Skin",
+		"panel.title": "Skin",
+		"panel.subtitle": "Background art and theme colors for the whole interface",
+		"panel.theme.off": "Official default",
+		"panel.theme.off.hint": "Restore the stock appearance",
 	},
 };
 
@@ -202,7 +212,118 @@ function apply(ctx) {
 		reportError("settings-row", error);
 	}
 
-	// 5. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题；dispose 时清除）
+	// 5. 独立面板（skill-explorer 同款已验证模式）：侧栏图标（sidebar.panellist，
+	//    id 即面板 id）+ 主栏整页（main，keyed by 面板 id）。图标收 {size, active}
+	//    owner props；页面无 props，全部经 apply 闭包（slots 文档：service 留在
+	//    apply closure，只向组件投影数据与 callback）。
+	function SkinPanelIcon({ size, active }) {
+		const px = typeof size === "number" ? size : 20;
+		return react.createElement(
+			"svg",
+			{
+				viewBox: "0 0 24 24",
+				width: px,
+				height: px,
+				"aria-hidden": true,
+				style: { display: "block", pointerEvents: "none" },
+			},
+			react.createElement("path", {
+				d: "M12 3a9 9 0 0 0 0 18h1.5a2 2 0 0 0 0-4H12a1.5 1.5 0 0 1 0-3h5.5A3.5 3.5 0 0 0 21 10.5 7.5 7.5 0 0 0 12 3Z",
+				fill: "none",
+				stroke: active ? "var(--dsw-alias-state-business-primary)" : "currentColor",
+				"stroke-width": 1.6,
+				"stroke-linejoin": "round",
+			}),
+			react.createElement("circle", { cx: 8, cy: 9.5, r: 1.1, fill: "currentColor" }),
+			react.createElement("circle", { cx: 12, cy: 7.5, r: 1.1, fill: "currentColor" }),
+			react.createElement("circle", { cx: 7, cy: 14, r: 1.1, fill: "currentColor" }),
+		);
+	}
+
+	/** 主题卡片：背景缩略图（资产 URL）+ 名称；off 卡用官方材质。 */
+	function ThemeCard({ id, label, hint, active, onPick }) {
+		const isOff = id === "off";
+		return react.createElement(
+			"button",
+			{
+				type: "button",
+				className: active ? "dsb_card dsb_cardActive" : "dsb_card",
+				onClick: onPick,
+			},
+			react.createElement(
+				"div",
+				{
+					className: "dsb_cardThumb",
+					style: isOff ? undefined : { backgroundImage: `url("${BG_URL}")` },
+				},
+				isOff ? react.createElement("span", { className: "dsb_cardOffGlyph" }, "DSH") : null,
+			),
+			react.createElement("div", { className: "dsb_cardName" }, label),
+			hint ? react.createElement("div", { className: "dsb_cardHint" }, hint) : null,
+		);
+	}
+
+	function SkinPanelPage() {
+		const [value, setValue] = react.useState(readTheme);
+		react.useEffect(() => form.subscribe(() => setValue(readTheme())), []);
+		const pick = (id) => {
+			if (id === "off" || THEMES[id] !== undefined) form.set("theme", id);
+		};
+		return react.createElement(
+			"div",
+			{ className: "dsb_panel" },
+			react.createElement("h1", { className: "dsb_panelTitle" }, t("panel.title")),
+			react.createElement("p", { className: "dsb_panelSubtitle" }, t("panel.subtitle")),
+			react.createElement(
+				"div",
+				{ className: "dsb_panelGrid" },
+				react.createElement(ThemeCard, {
+					id: "off",
+					label: t("panel.theme.off"),
+					hint: t("panel.theme.off.hint"),
+					active: value === "off",
+					onPick: () => pick("off"),
+				}),
+				Object.keys(THEMES).map((id) =>
+					react.createElement(ThemeCard, {
+						key: id,
+						id,
+						label: THEMES[id].name ?? id,
+						hint: null,
+						active: value === id,
+						onPick: () => pick(id),
+					}),
+				),
+			),
+		);
+	}
+
+	try {
+		ctx.slots.inject("sidebar.panellist", () =>
+			ctx.slots.register(
+				{
+					name: "sidebar.panellist",
+					id: PACKAGE_ID,
+					order: 40,
+					label: () => t("panel.label"),
+				},
+				SkinPanelIcon,
+			),
+		);
+		ctx.slots.inject("main", () =>
+			ctx.slots.register(
+				{
+					name: "main",
+					key: PACKAGE_ID,
+				},
+				SkinPanelPage,
+			),
+		);
+	} catch (error) {
+		reportError("panel", error);
+	}
+
+	// 6. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题；dispose 时清除）
 	ctx.effect(() => () => {
 		delete window.__dsb__;
 	}, `${PACKAGE_ID}: debug handle`);
@@ -218,7 +339,7 @@ function apply(ctx) {
 		},
 	};
 
-	// 6. 兜底 teardown（dispose/HMR：样式表由步骤 1 移除，这里收覆盖层与画布）
+	// 7. 兜底 teardown（dispose/HMR：样式表由步骤 1 移除，这里收覆盖层与画布）
 	ctx.effect(() => () => {
 		removeOverride();
 		clearCanvas();
