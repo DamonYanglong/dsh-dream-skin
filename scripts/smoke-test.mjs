@@ -327,7 +327,7 @@ assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel f
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
-assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "center", "background centered (v10: position slider removed)");
+assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "76% 45%", "background positioned by theme focus (subject centered)");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
@@ -336,7 +336,7 @@ assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "materia
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
-assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.250", "scrim strength scales with visibility (25/100)");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim strength has 0.35 readability floor at v=75");
 assert.ok(styleTags()[0].textContent.includes("calc(0.9 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
 assert.ok(
 	styleTags()[0].textContent.includes("html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {"),
@@ -372,8 +372,8 @@ const slider = findNode(pageTree, (n) => n.type === "input" && n.props.type === 
 assert.ok(slider, "visibility slider rendered while a theme is active");
 slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
-assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider live-tunes alphas optimistically (0.62×10/45)");
-assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.100", "slider scales scrim strength too (10/100)");
+assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.180", "slider tunes alphas with 0.18 floor");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "slider scales scrim with 0.35 readability floor");
 formWrites.length = 0;
 
 // ---------- 场景 6c：面板只保留透出度滑杆（v10 移除位置滑杆） ----------

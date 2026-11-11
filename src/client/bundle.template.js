@@ -334,18 +334,22 @@ function apply(ctx) {
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
 	};
 
-	/** 材质 alpha 与 scrim 强度随「透出度」缩放（v8 公式）。 */
+	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
+	 *  scrim 至少保留 35%（拉满也不能让文字裸奔在图上）；
+	 *  材质 alpha 至少 0.18（卡片保留基本衬底）。 */
 	const applyAlphas = (def, v) => {
 		for (const [key, d] of Object.entries(def.alphas ?? DEFAULT_ALPHAS)) {
-			const a = Math.min(0.95, Math.max(0.05, (d * (100 - v)) / 45));
+			const a = Math.max(0.18, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
-		root.style.setProperty("--dsb-scrim-k", ((100 - Math.min(100, Math.max(0, v))) / 100).toFixed(3));
+		const k = Math.max(0.35, (100 - Math.min(100, Math.max(0, v))) / 100);
+		root.style.setProperty("--dsb-scrim-k", k.toFixed(3));
 	};
 
-	/** 背景画布定位：居中 + cover 随窗口自适应（v10 用户决策，移除位置滑杆）。 */
-	const applyPos = () => {
-		root.style.setProperty("--dsb-bg-pos", "center");
+	/** 背景定位 = 主题焦点（zds 语义：focusX 把画面主体摆到视口中央；
+	 *  v12 修正：v10 的纯 center 会把偏侧构图的主体（gothic 大教堂）推向边缘）。 */
+	const applyPos = (def) => {
+		root.style.setProperty("--dsb-bg-pos", `${Math.round(def.fx * 100)}% ${Math.round(def.fy * 100)}%`);
 	};
 
 	/** 应用主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册）。 */
@@ -357,7 +361,7 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-l-rgb", def.lRgb);
 		root.setAttribute("data-dsb-on", "");
 		root.setAttribute("data-dsb-theme", id);
-		applyPos();
+		applyPos(def);
 		applyAlphas(def, v);
 		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 		current = id;
