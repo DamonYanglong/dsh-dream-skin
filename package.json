@@ -1,0 +1,36 @@
+{
+  "name": "dsh-dream-skin",
+  "version": "0.1.0-design",
+  "description": "Background-image skin plugin for the DeepSeek Harness web GUI: asset-pipeline backgrounds + ctx.theme override-layer token rebinding + scrim stylesheet.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "_comment_dsh_client": "M1 定稿草案：inject 待真机校准（theme/settings 由哪些包的客户端半侧提供），immediately 预计不需要（皮肤可惰性加载）。exports 的 ./assets/* 是资产管线硬性要求，./client 由 tsdown 产出 factory 形态 bundle。",
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./assets/*": "./lib/assets/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "NOTICE.md"
+  ],
+  "scripts": {
+    "build:themes": "node scripts/build-themes.mjs",
+    "build": "pnpm run build:themes && tsdown"
+  },
+  "devDependencies": {}
+}

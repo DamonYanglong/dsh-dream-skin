@@ -1,0 +1,7 @@
+node_modules/
+lib/
+dist/
+*.log
+.DS_Store
+# 主题源里的背景图在 M2 移植时入库（可再分发素材），导入的用户主题不入库
+themes/*/background.*
