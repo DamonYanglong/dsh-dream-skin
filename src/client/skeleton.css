@@ -30,8 +30,9 @@ html[data-dsb-on] {
   background-repeat: no-repeat !important;
 }
 
-/* html 画布之下不允许 body 再铺实底（否则盖住背景图；无皮肤时不生效）。 */
-html[data-dsb-on] body {
+/* html 画布之下不允许 body/#root 再铺实底（否则盖住背景图；无皮肤时不生效）。 */
+html[data-dsb-on] body,
+html[data-dsb-on] #root {
   background-color: transparent !important;
 }
 
@@ -166,4 +167,22 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
 .dsb_cardHint {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
+}
+
+/* ---- 背景透出度滑杆 ---- */
+.dsb_panelSlider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  max-width: 420px;
+}
+.dsb_panelSliderLabel {
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size, 14px);
+}
+.dsb_panelSlider input[type="range"] {
+  flex: 1;
+  accent-color: var(--dsw-alias-state-business-primary);
 }

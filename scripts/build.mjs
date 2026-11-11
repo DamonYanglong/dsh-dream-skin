@@ -59,21 +59,27 @@ for (const id of themeIds) {
     lRgb: dsw.scrimLightRgb,
     tokens: dsw.tokens,
   };
-  // 拆分：材质 token → #root 作用域 CSS（暗值里的主题底色替换为 --dsb-d-rgb 变量）
+  // 拆分：材质 token → #root 作用域 CSS；alpha 参数化为 --dsb-a-* 变量
+  // （applyTheme 按「背景透出度」实时缩放，面板滑杆直调）
   const decls = [];
+  /** bg-base → base；bg-layer-N → N */
+  const alphaVarOf = (tokenName) => tokenName.replace(/^--dsw-alias-bg-(base|layer-(\d+))$/, (_, kind, n) => (kind === "base" ? "base" : n));
+  themes[id].alphas = {};
   for (const name of Object.keys(themes[id].tokens)) {
     if (!LAYER_TOKEN_RE.test(name)) continue;
+    const key = alphaVarOf(name);
     const dark = themes[id].tokens[name].dark;
-    if (!/^#/.test(dark) && !dark.includes("color-mix")) {
-      throw new Error(`themes/${id}/dsw.json: ${name}.dark 需为可参数化的 color-mix/#hex 表达式，got ${dark}`);
-    }
-    decls.push(`\t${name}: ${dark.replace(/#[0-9a-fA-F]{3,8}\b/g, "rgb(var(--dsb-d-rgb))")};`);
+    const pct = dark.match(/(\d+(?:\.\d+)?)%,\s*transparent/);
+    if (!pct) throw new Error(`themes/${id}/dsw.json: ${name}.dark 需为 color-mix(… N%, transparent)，got ${dark}`);
+    themes[id].alphas[key] = Number(pct[1]) / 100;
+    decls.push(`\t${name}: rgb(var(--dsb-d-rgb) / var(--dsb-a-${key}, ${pct[1]}%));`);
     delete themes[id].tokens[name];
   }
   if (decls.length > 0) {
     layerRules.push(
       `/* ${id} 材质半透明化（源自 dsw.json bg-* token；挂 data-dsb-theme 门控，\n * ` +
-        `#root 作用域 = 设置面板/菜单/浮层在 #root 外，保持官方材质）*/\n` +
+        `#root 作用域 = 设置面板/菜单/浮层在 #root 外，保持官方材质；\n * ` +
+        `alpha 经 --dsb-a-* 由「背景透出度」实时缩放）*/\n` +
         `html[data-dsb-on][data-dsb-theme=${JSON.stringify(id)}]:has(body[data-ds-dark-theme]) #root {\n` +
         `${decls.join("\n")}\n}`,
     );

@@ -44,8 +44,11 @@ const THEMES = __THEMES_PLACEHOLDER__;
 /** 背景图 URL（构建期资产管线：内容哈希文件名 + require.asset 调用）。 */
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
-/** 骨架 CSS 消费的 body 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb"];
+/** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
+const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
+
+/** 背景透出度默认值（0–100，越高背景图越透出；与 Host Config 默认一致）。 */
+const DEFAULT_VISIBILITY = 75;
 
 /** 设置行 + 面板文案（M2：zh/en 先行，M4 分发前补齐 locale/*.json 八语）。 */
 const LOCALE = {
@@ -55,8 +58,9 @@ const LOCALE = {
 		"panel.label": "皮肤",
 		"panel.title": "皮肤",
 		"panel.subtitle": "为整个界面换上背景图与主题色",
-		"panel.theme.off": "官方默认",
+			"panel.theme.off": "官方默认",
 		"panel.theme.off.hint": "还原官方外观",
+		"panel.visibility": "背景透出度",
 	},
 	en: {
 		"row.title": "Skin",
@@ -66,6 +70,7 @@ const LOCALE = {
 		"panel.subtitle": "Background art and theme colors for the whole interface",
 		"panel.theme.off": "Official default",
 		"panel.theme.off.hint": "Restore the stock appearance",
+		"panel.visibility": "Background visibility",
 	},
 };
 
@@ -110,9 +115,15 @@ function apply(ctx) {
 	const form = ctx.configForms.get(ENTRY_ID);
 	/** 镜像未就绪时 value 为 undefined → 视为 off。 */
 	const readTheme = () => form.getSnapshot().value?.theme ?? "off";
+	/** 背景透出度（0–100；镜像未就绪 → 默认值）。 */
+	const readVisibility = () => {
+		const n = form.getSnapshot().value?.visibility;
+		return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : DEFAULT_VISIBILITY;
+	};
 
 	const root = document.documentElement;
 	let current = "off";
+	let currentVis = DEFAULT_VISIBILITY;
 	let disposeOverride = null;
 
 	/** 移除 token 覆盖层（基主题不动，移除即还原官方值）。 */
@@ -128,11 +139,20 @@ function apply(ctx) {
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
 	};
 
-	/** 应用一个主题：画布参数 + token 覆盖层（幂等注册，同 source 整层替换）。
+	/** 材质 alpha = 主题阶梯值 × (100-透出度)/45：v=55 → 原阶梯，
+	 *  v=100 → 近全透，v=0 → 近实底（上限 0.95 下限 0.05）。 */
+	const applyAlphas = (theme, v) => {
+		for (const [key, d] of Object.entries(theme.alphas ?? {})) {
+			const a = Math.min(0.95, Math.max(0.05, (d * (100 - v)) / 45));
+			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
+		}
+	};
+
+	/** 应用一个主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册，同 source 整层替换）。
 	 *  注意：画布变量必须挂在 documentElement 上——骨架 CSS 的消费方是 html
 	 *  （background-image/position 在 html 上），CSS 变量只向下继承，挂 body
 	 *  会让 html 读不到、整条 background 声明失效（v5 真机实测教训）。 */
-	const applyTheme = (id) => {
+	const applyTheme = (id, v) => {
 		const theme = THEMES[id];
 		if (theme === undefined) return;
 		root.style.setProperty("--dsb-bg", `url("${BG_URL}")`);
@@ -141,6 +161,7 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-l-rgb", theme.lRgb);
 		root.setAttribute("data-dsb-on", "");
 		root.setAttribute("data-dsb-theme", id);
+		applyAlphas(theme, v);
 		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, theme.tokens);
 		current = id;
 	};
@@ -148,14 +169,24 @@ function apply(ctx) {
 	/** 跟随设置表单（写答案折入共享镜像；连接重置/文档更新均触发订阅）。 */
 	const sync = () => {
 		const value = readTheme();
-		if (value === current) return;
+		const v = readVisibility();
 		if (value === "off" || THEMES[value] === undefined) {
-			removeOverride();
-			clearCanvas();
-			current = "off";
+			if (current !== "off") {
+				removeOverride();
+				clearCanvas();
+				current = "off";
+			}
 			return;
 		}
-		applyTheme(value);
+		if (value !== current) {
+			applyTheme(value, v);
+			currentVis = v;
+			return;
+		}
+		if (v !== currentVis) {
+			applyAlphas(THEMES[value], v);
+			currentVis = v;
+		}
 	};
 	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
 	sync();
@@ -269,10 +300,26 @@ function apply(ctx) {
 
 	function SkinPanelPage() {
 		const [value, setValue] = react.useState(readTheme);
-		react.useEffect(() => form.subscribe(() => setValue(readTheme())), []);
+		const [vis, setVis] = react.useState(readVisibility);
+		react.useEffect(
+			() =>
+				form.subscribe(() => {
+					setValue(readTheme());
+					setVis(readVisibility());
+				}),
+			[],
+		);
 		const pick = (id) => {
 			if (id === "off" || THEMES[id] !== undefined) form.set("theme", id);
 		};
+		const slideVis = (n) => {
+			if (!Number.isFinite(n)) return;
+			const clamped = Math.min(100, Math.max(0, n));
+			setVis(clamped);
+			if (THEMES[value] !== undefined) applyAlphas(THEMES[value], clamped); // 拖动即时预览
+			form.set("visibility", clamped); // 持久化（快速连续写按手势序序列化）
+		};
+		const tunable = value !== "off" && THEMES[value] !== undefined;
 		return react.createElement(
 			"div",
 			{ className: "dsb_panel" },
@@ -299,6 +346,21 @@ function apply(ctx) {
 					}),
 				),
 			),
+			tunable
+				? react.createElement(
+						"label",
+						{ className: "dsb_panelSlider" },
+						react.createElement("span", { className: "dsb_panelSliderLabel" }, t("panel.visibility")),
+						react.createElement("input", {
+							type: "range",
+							min: 0,
+							max: 100,
+							step: 1,
+							value: vis,
+							onChange: (event) => slideVis(Number(event.target.value)),
+						}),
+					)
+				: null,
 		);
 	}
 

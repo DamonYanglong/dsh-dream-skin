@@ -22,13 +22,16 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const bundle = readFileSync(join(root, "lib/client.js"), "utf8");
 
-// ---------- stub react（createElement + 按组件隔离的 hooks + setState 重渲染） ----------
-const hookStates = new Map(); // component -> {initialized, value}
+// ---------- stub react（createElement + 按调用序分配的 hooks 槽 + setState 重渲染） ----------
+const hookSlots = new Map(); // component -> { idx, cells: [{initialized, value}] }
 const renderCounts = new Map(); // component -> 已渲染次数
 const effectCleanups = [];
 let rendering = null;
 const renderTree = (component, props) => {
 	rendering = component;
+	const slots = hookSlots.get(component) ?? { idx: 0, cells: [] };
+	slots.idx = 0;
+	hookSlots.set(component, slots);
 	try {
 		const tree = component(props);
 		renderCounts.set(component, (renderCounts.get(component) ?? 0) + 1);
@@ -59,18 +62,25 @@ const reactStub = {
 		}
 		return { type, props: props ?? {}, children: children.flat() };
 	},
+	/** 槽位按调用序分配（同组件多次 useState 各占一格，重渲染对齐）。 */
 	useState(init) {
-		const st = hookStates.get(rendering) ?? { initialized: false, value: undefined };
-		hookStates.set(rendering, st);
-		if (!st.initialized) {
-			st.value = typeof init === "function" ? init() : init;
-			st.initialized = true;
+		const slots = hookSlots.get(rendering) ?? { idx: 0, cells: [] };
+		hookSlots.set(rendering, slots);
+		const i = slots.idx++;
+		let cell = slots.cells[i];
+		if (cell === undefined) {
+			cell = { initialized: false, value: undefined };
+			slots.cells[i] = cell;
+		}
+		if (!cell.initialized) {
+			cell.value = typeof init === "function" ? init() : init;
+			cell.initialized = true;
 		}
 		const component = rendering;
 		return [
-			st.value,
+			cell.value,
 			(next) => {
-				st.value = typeof next === "function" ? next(st.value) : next;
+				cell.value = typeof next === "function" ? next(cell.value) : next;
 				if (component) rerender(component);
 			},
 		];
@@ -248,7 +258,7 @@ const styleTags = () => (styleTag && !styleTag.removed && styleTag.tagName === "
 assert.equal(styleTags().length, 1, "skeleton style installed");
 assert.equal(styleTags()[0].dataset.pluginCss, "dsh-dream-skin/skeleton");
 assert.ok(styleTags()[0].textContent.includes('html[data-dsb-on][data-dsb-theme="gothic-void-crusade"]'), "layer scoping rule baked into skeleton");
-assert.ok(styleTags()[0].textContent.includes("rgb(var(--dsb-d-rgb))"), "layer alphas parameterized by theme base color");
+assert.ok(styleTags()[0].textContent.includes("rgb(var(--dsb-d-rgb) / var(--dsb-a-base"), "layer colors parameterized by theme base color + alpha var");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "off before settings arrive");
 assert.equal(overrideLayer, null);
 assert.ok(localeRegistry.has("dsh-dream-skin"), "locale dictionaries registered");
@@ -302,6 +312,9 @@ assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw-static-neutral-bluish-1000)");
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "material tokens NOT in global override (scoped to #root instead)");
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
+assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
+assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
+assert.ok(styleTags()[0].textContent.includes("var(--dsb-a-base"), "generated rule consumes alpha vars");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
 assert.ok(
 	String(findNode(pageTree, byClass("dsb_panelGrid")).children[1].props.className).includes("dsb_cardActive"),
@@ -322,6 +335,17 @@ formWrites.length = 0;
 windowStub.__dsb__.setTheme("off");
 windowStub.__dsb__.setTheme("nope");
 assert.deepEqual(formWrites, [{ field: "theme", value: "off" }], "debug handle writes valid ids only");
+formWrites.length = 0;
+
+// ---------- 场景 6b：透出度滑杆 → 即时预览 + 持久化写 ----------
+settingsValue = { theme: "gothic-void-crusade", visibility: 75 };
+for (const fn of formListeners) fn();
+const slider = findNode(pageTree, (n) => n.type === "input" && n.props.type === "range");
+assert.ok(slider, "visibility slider rendered while a theme is active");
+slider.props.onChange({ target: { value: "90" } });
+assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
+assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider live-tunes alphas optimistically (0.62×10/45)");
+formWrites.length = 0;
 
 // ---------- 场景 7：切回 off → 完整还原 ----------
 settingsValue = { theme: "off" };

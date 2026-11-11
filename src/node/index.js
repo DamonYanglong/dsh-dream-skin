@@ -13,6 +13,8 @@ export const THEME_IDS = ["off", "gothic-void-crusade"];
 /** 皮肤选择：`off` = 完整还原官方外观。 */
 export const Config = z.object({
   theme: z.union([...THEME_IDS]).default("off").volatile(),
+  /** 背景透出度 0–100：越高背景图越透出（材质 alpha 阶梯按此缩放）。 */
+  visibility: z.number().min(0).max(100).default(75).volatile(),
 });
 
 /** Host plugin body — 皮肤全部逻辑在浏览器半侧。 */
