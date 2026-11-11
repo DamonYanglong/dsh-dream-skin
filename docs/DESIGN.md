@@ -333,6 +333,28 @@ bundles 列表 + insert 行，参照 dsh-work-x）才可被 Loader 解析；仅 
 
 ---
 
+### M2 执行记录（2026-11-11 · v6 真机校准）
+
+**v5 真机结果**：独立面板（`sidebar.panellist` 图标 + `main` keyed 页面，
+skill-explorer 同款模式）真机渲染成功——客户端半侧物化、slots、locale、
+configForms 全链路打通。但暴露两个视觉层 bug（v6 修复）：
+
+1. **背景图从未生效（含 M1 时期）**：`--dsb-*` 画布变量挂在 `body` 上，
+   消费方却是 `html`（background-image 在 html）——CSS 变量只向下继承，
+   html 读不到 → 整条 background 声明 invalid-at-computed-value → 无背景。
+   此前"皮肤生效"的观感全部来自 overrideTokens（文字/边框变色）。
+   修复：画布变量改挂 `documentElement`，另加 `html[data-dsb-on] body
+   { background-color: transparent }` 防实底遮图。
+2. **设置页透底不可读**：`bg-base`/`bg-layer-1/2/3` 全局覆盖成 62–82%
+   透明，设置面板卡片同吃这些 token。修复（= zcode「设置页保留原始」的
+   DSH 等价实现）：材质 token 从全局 overrideTokens 拆出，构建期生成
+   `html[data-dsb-on][data-dsb-theme=<id>]:has(body[data-ds-dark-theme]) #root`
+   作用域规则——设置面板/菜单/浮层 portal 在 **#root 之外**，天然保持官方
+   不透明材质；应用本体（#root 内）材质半透明、透出背景图。纯颜色类 token
+   （label/border/accent/scrollbar…）保持全局覆盖（任何材质上都可读）。
+
+---
+
 ## 11. 风险与开放问题
 
 | # | 风险/问题 | 影响 | 缓解 |

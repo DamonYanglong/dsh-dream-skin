@@ -88,6 +88,12 @@ const externals = { react: reactStub };
 const head = { children: new Set(), appendChild(el) { this.children.add(el); return el; } };
 const htmlEl = {
 	attrs: new Map(),
+	style: {
+		map: new Map(),
+		setProperty(k, v) { this.map.set(k, v); },
+		removeProperty(k) { this.map.delete(k); },
+		getPropertyValue(k) { return this.map.get(k) ?? ""; },
+	},
 	setAttribute(k, v) { this.attrs.set(k, v); },
 	removeAttribute(k) { this.attrs.delete(k); },
 };
@@ -241,6 +247,8 @@ exports.apply(ctx);
 const styleTags = () => (styleTag && !styleTag.removed && styleTag.tagName === "STYLE" ? [styleTag] : []);
 assert.equal(styleTags().length, 1, "skeleton style installed");
 assert.equal(styleTags()[0].dataset.pluginCss, "dsh-dream-skin/skeleton");
+assert.ok(styleTags()[0].textContent.includes('html[data-dsb-on][data-dsb-theme="gothic-void-crusade"]'), "layer scoping rule baked into skeleton");
+assert.ok(styleTags()[0].textContent.includes("rgb(var(--dsb-d-rgb))"), "layer alphas parameterized by theme base color");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "off before settings arrive");
 assert.equal(overrideLayer, null);
 assert.ok(localeRegistry.has("dsh-dream-skin"), "locale dictionaries registered");
@@ -285,12 +293,15 @@ assert.ok(themeCard.children[0].props.style.backgroundImage.includes("#asset:"),
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
-assert.equal(bodyEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")');
-assert.equal(bodyEl.style.map.get("--dsb-bg-pos"), "76% 45%");
+assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
+assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
+assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "76% 45%");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw-static-neutral-bluish-1000)");
+assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "material tokens NOT in global override (scoped to #root instead)");
+assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
 assert.ok(
 	String(findNode(pageTree, byClass("dsb_panelGrid")).children[1].props.className).includes("dsb_cardActive"),
@@ -316,7 +327,8 @@ assert.deepEqual(formWrites, [{ field: "theme", value: "off" }], "debug handle w
 settingsValue = { theme: "off" };
 for (const fn of formListeners) fn();
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "gate removed");
-assert.equal(bodyEl.style.map.size, 0, "canvas vars cleared");
+assert.equal(htmlEl.attrs.has("data-dsb-theme"), false, "theme gate removed");
+assert.equal(htmlEl.style.map.size, 0, "canvas vars cleared");
 assert.equal(overrideLayer, null, "override layer removed");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "off", "row back to off");
 
@@ -328,6 +340,6 @@ while (effects.length > 0) disposeEntry(effects[effects.length - 1]);
 assert.equal(styleTags().length, 0, "style tag removed on dispose");
 assert.equal(windowStub.__dsb__, undefined, "debug handle removed on dispose");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false);
-assert.equal(bodyEl.style.map.size, 0);
+assert.equal(htmlEl.style.map.size, 0);
 
 console.log("smoke-test: 8 scenarios passed ✓");

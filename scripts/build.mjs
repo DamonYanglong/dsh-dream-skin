@@ -42,6 +42,11 @@ const themeIds = readFileSync(join(root, "src/node/index.js"), "utf8").match(/TH
   .filter((id) => id && id !== "off");
 
 const themes = {};
+/** 材质 token（bg-base / bg-layer-N）：不进全局 overrideTokens——半透明化只作用于
+ *  #root（应用本体）；设置面板/菜单 portal 在 #root 外，保持官方不透明材质
+ *  （v6 决策：zcode 的“设置页保留原始”等价实现）。 */
+const LAYER_TOKEN_RE = /^--dsw-alias-(bg-base|bg-layer-\d+)$/;
+const layerRules = [];
 for (const id of themeIds) {
   const dir = join(themesDir, id);
   const theme = JSON.parse(readFileSync(join(dir, "theme.json"), "utf8"));
@@ -54,6 +59,25 @@ for (const id of themeIds) {
     lRgb: dsw.scrimLightRgb,
     tokens: dsw.tokens,
   };
+  // 拆分：材质 token → #root 作用域 CSS（暗值里的主题底色替换为 --dsb-d-rgb 变量）
+  const decls = [];
+  for (const name of Object.keys(themes[id].tokens)) {
+    if (!LAYER_TOKEN_RE.test(name)) continue;
+    const dark = themes[id].tokens[name].dark;
+    if (!/^#/.test(dark) && !dark.includes("color-mix")) {
+      throw new Error(`themes/${id}/dsw.json: ${name}.dark 需为可参数化的 color-mix/#hex 表达式，got ${dark}`);
+    }
+    decls.push(`\t${name}: ${dark.replace(/#[0-9a-fA-F]{3,8}\b/g, "rgb(var(--dsb-d-rgb))")};`);
+    delete themes[id].tokens[name];
+  }
+  if (decls.length > 0) {
+    layerRules.push(
+      `/* ${id} 材质半透明化（源自 dsw.json bg-* token；挂 data-dsb-theme 门控，\n * ` +
+        `#root 作用域 = 设置面板/菜单/浮层在 #root 外，保持官方材质）*/\n` +
+        `html[data-dsb-on][data-dsb-theme=${JSON.stringify(id)}]:has(body[data-ds-dark-theme]) #root {\n` +
+        `${decls.join("\n")}\n}`,
+    );
+  }
 }
 
 // ---------- 资产 ----------
@@ -76,7 +100,9 @@ for (const id of themeIds) {
 }
 
 // ---------- client bundle ----------
-const skeletonCss = readFileSync(join(root, "src/client/skeleton.css"), "utf8");
+const skeletonCss =
+  readFileSync(join(root, "src/client/skeleton.css"), "utf8") +
+  (layerRules.length > 0 ? `\n\n/* ---- 材质半透明化 · #root 作用域（构建期生成，见 skeleton.css 头注）---- */\n${layerRules.join("\n\n")}\n` : "");
 const template = readFileSync(join(root, "src/client/bundle.template.js"), "utf8");
 
 // M1：单主题共用同一张背景（THEMES 键序即 themeIds 序）。

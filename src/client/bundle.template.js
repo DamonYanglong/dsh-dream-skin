@@ -112,7 +112,6 @@ function apply(ctx) {
 	const readTheme = () => form.getSnapshot().value?.theme ?? "off";
 
 	const root = document.documentElement;
-	const body = document.body;
 	let current = "off";
 	let disposeOverride = null;
 
@@ -125,18 +124,23 @@ function apply(ctx) {
 	/** 清空骨架画布变量 + 关闭 html 门控属性（完整还原官方外观）。 */
 	const clearCanvas = () => {
 		root.removeAttribute("data-dsb-on");
-		for (const name of CANVAS_VARS) body.style.removeProperty(name);
+		root.removeAttribute("data-dsb-theme");
+		for (const name of CANVAS_VARS) root.style.removeProperty(name);
 	};
 
-	/** 应用一个主题：画布参数 + token 覆盖层（幂等注册，同 source 整层替换）。 */
+	/** 应用一个主题：画布参数 + token 覆盖层（幂等注册，同 source 整层替换）。
+	 *  注意：画布变量必须挂在 documentElement 上——骨架 CSS 的消费方是 html
+	 *  （background-image/position 在 html 上），CSS 变量只向下继承，挂 body
+	 *  会让 html 读不到、整条 background 声明失效（v5 真机实测教训）。 */
 	const applyTheme = (id) => {
 		const theme = THEMES[id];
 		if (theme === undefined) return;
-		body.style.setProperty("--dsb-bg", `url("${BG_URL}")`);
-		body.style.setProperty("--dsb-bg-pos", theme.bgPos);
-		body.style.setProperty("--dsb-d-rgb", theme.dRgb);
-		body.style.setProperty("--dsb-l-rgb", theme.lRgb);
+		root.style.setProperty("--dsb-bg", `url("${BG_URL}")`);
+		root.style.setProperty("--dsb-bg-pos", theme.bgPos);
+		root.style.setProperty("--dsb-d-rgb", theme.dRgb);
+		root.style.setProperty("--dsb-l-rgb", theme.lRgb);
 		root.setAttribute("data-dsb-on", "");
+		root.setAttribute("data-dsb-theme", id);
 		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, theme.tokens);
 		current = id;
 	};
