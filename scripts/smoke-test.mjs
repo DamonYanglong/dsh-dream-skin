@@ -314,6 +314,8 @@ assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "materia
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.250", "scrim strength scales with visibility (25/100)");
+assert.ok(styleTags()[0].textContent.includes("calc(0.9 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
 assert.ok(styleTags()[0].textContent.includes("var(--dsb-a-base"), "generated rule consumes alpha vars");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
 assert.ok(
@@ -345,6 +347,7 @@ assert.ok(slider, "visibility slider rendered while a theme is active");
 slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider live-tunes alphas optimistically (0.62×10/45)");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.100", "slider scales scrim strength too (10/100)");
 formWrites.length = 0;
 
 // ---------- 场景 7：切回 off → 完整还原 ----------

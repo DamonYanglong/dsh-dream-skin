@@ -45,7 +45,7 @@ const THEMES = __THEMES_PLACEHOLDER__;
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
+const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
 
 /** 背景透出度默认值（0–100，越高背景图越透出；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
@@ -139,13 +139,15 @@ function apply(ctx) {
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
 	};
 
-	/** 材质 alpha = 主题阶梯值 × (100-透出度)/45：v=55 → 原阶梯，
-	 *  v=100 → 近全透，v=0 → 近实底（上限 0.95 下限 0.05）。 */
+	/** 材质 alpha 与 scrim 强度都随「背景透出度」缩放：
+	 *  材质 alpha = 主题阶梯值 × (100-v)/45（v=55 → 原阶梯）；
+	 *  scrim 系数 k = (100-v)/100（v=100 → scrim 消失 = 纯壁纸，v=0 → 全强度）。 */
 	const applyAlphas = (theme, v) => {
 		for (const [key, d] of Object.entries(theme.alphas ?? {})) {
 			const a = Math.min(0.95, Math.max(0.05, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
+		root.style.setProperty("--dsb-scrim-k", ((100 - Math.min(100, Math.max(0, v))) / 100).toFixed(3));
 	};
 
 	/** 应用一个主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册，同 source 整层替换）。

@@ -38,30 +38,30 @@ html[data-dsb-on] #root {
 
 /* ---- scrim 端点（暗壳）：底色 = colors.background，alpha 阶沿上游 dark 组 ---- */
 html[data-dsb-on]:has(body[data-ds-dark-theme]) {
-  --dsb-hero-1: rgb(var(--dsb-d-rgb) / 0.9);
-  --dsb-hero-2: rgb(var(--dsb-d-rgb) / 0.76);
-  --dsb-hero-3: rgb(var(--dsb-d-rgb) / 0.18);
-  --dsb-fade-1: rgb(var(--dsb-d-rgb) / 0.1);
-  --dsb-fade-2: rgb(var(--dsb-d-rgb) / 0.18);
-  --dsb-fade-3: rgb(var(--dsb-d-rgb) / 0.76);
-  --dsb-fade-4: rgb(var(--dsb-d-rgb) / 1);
-  --dsb-shade-1: rgb(var(--dsb-d-rgb) / 0.56);
-  --dsb-shade-2: rgb(var(--dsb-d-rgb) / 0.36);
-  --dsb-shade-3: rgb(var(--dsb-d-rgb) / 0.12);
+  --dsb-hero-1: rgb(var(--dsb-d-rgb) / calc(0.9 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-2: rgb(var(--dsb-d-rgb) / calc(0.76 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-3: rgb(var(--dsb-d-rgb) / calc(0.18 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-1: rgb(var(--dsb-d-rgb) / calc(0.1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-2: rgb(var(--dsb-d-rgb) / calc(0.18 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-3: rgb(var(--dsb-d-rgb) / calc(0.76 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-4: rgb(var(--dsb-d-rgb) / calc(1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-1: rgb(var(--dsb-d-rgb) / calc(0.56 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-2: rgb(var(--dsb-d-rgb) / calc(0.36 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-3: rgb(var(--dsb-d-rgb) / calc(0.12 * var(--dsb-scrim-k, 0.45)));
 }
 
 /* ---- scrim 端点（浅壳）：底色 = 主题浅组 scrim 色（zds 浅组 panel 色） ---- */
 html[data-dsb-on]:not(:has(body[data-ds-dark-theme])) {
-  --dsb-hero-1: rgb(var(--dsb-l-rgb) / 0.96);
-  --dsb-hero-2: rgb(var(--dsb-l-rgb) / 0.82);
-  --dsb-hero-3: rgb(var(--dsb-l-rgb) / 0.2);
-  --dsb-fade-1: rgb(var(--dsb-l-rgb) / 0.08);
-  --dsb-fade-2: rgb(var(--dsb-l-rgb) / 0.22);
-  --dsb-fade-3: rgb(var(--dsb-l-rgb) / 0.78);
-  --dsb-fade-4: rgb(var(--dsb-l-rgb) / 1);
-  --dsb-shade-1: rgb(var(--dsb-l-rgb) / 0.68);
-  --dsb-shade-2: rgb(var(--dsb-l-rgb) / 0.4);
-  --dsb-shade-3: rgb(var(--dsb-l-rgb) / 0.12);
+  --dsb-hero-1: rgb(var(--dsb-l-rgb) / calc(0.96 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-2: rgb(var(--dsb-l-rgb) / calc(0.82 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-3: rgb(var(--dsb-l-rgb) / calc(0.2 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-1: rgb(var(--dsb-l-rgb) / calc(0.08 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-2: rgb(var(--dsb-l-rgb) / calc(0.22 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-3: rgb(var(--dsb-l-rgb) / calc(0.78 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-4: rgb(var(--dsb-l-rgb) / calc(1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-1: rgb(var(--dsb-l-rgb) / calc(0.68 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-2: rgb(var(--dsb-l-rgb) / calc(0.4 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-3: rgb(var(--dsb-l-rgb) / calc(0.12 * var(--dsb-scrim-k, 0.45)));
 }
 
 /* ---- 首页：hero scrim，左重右透 ---- */
