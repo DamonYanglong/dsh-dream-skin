@@ -70,13 +70,23 @@
 - 设置页是 `main` keyed slot 的全局面板 → guard 的"设置页剥皮"可监听面板切换实现，无需
   ZCode 时代的文本探测（apply.mjs `settingsOpen()`）。
 
-### 2.5 宿主热重载边界（M1 新增，重要）
+### 2.5 宿主热重载边界（M1 新增，重要；M1 末期修正）
 
-- **宿主不 watch profile patch 文件**：`reconcileProfilePatches` 只被
-  config-editor `edit()`（任意设置保存）与 plugin-manager 操作（插件启停/安装）调用。
-  手工编辑 `cordis.patch.yml` 后必须在 GUI 里触发一次上述操作（或重启宿主）才生效。
-- 新增 Loader 条目激活链：patch 重读 → Loader 挂 node 半侧（校验 Config）→
-  client-modules 对账读 manifest + bundle 元数据 → 图发布 → 页面经 SSE/HMR 跟随。
+- **dsh-hmr watch profile patch + manifest**（`watchConfig`，chokidar 精确路径 +
+  2s awaitWriteFinish）：profile 用户 patch、home patch、profile `package.json`
+  变化触发 `reconcileProfile`。manifest 通知仅在**有序 `dsh.profile.bundles`
+  列表变化**时触发重载；config-editor 保存与 plugin-manager 操作也走同一队列。
+- **重组合热替换链接包的构建产物**：`node_modules` 下已安装包与已链接（symlink）
+  包的目标文件变化，在下一次重组合时生效，无需重启（README「使用本包」）。
+  因此开发闭环 = rebuild + 轻碰 patch（如改写一行注释），页面经 HMR 自动跟随。
+- 注意 `hmr` 条目的模块监听默认忽略 `**/node_modules`——构建产物变化本身
+  不触发事件，需要一次 patch/manifest 编辑或 PM 操作来触发重组合。
+- 新增 Loader 条目激活链：patch/manifest 变化 → reconcile → Loader 挂 node 半侧
+  （校验 Config）→ client-modules 对账读 manifest + bundle 元数据 → 图发布 →
+  页面经 SSE/HMR 跟随。
+- **profile 本地包必须做成 bundle** 才可被 Loader 解析（`dsh.bundle.patch` +
+  `dsh.profile.bundles` 列表 + insert 行；参照 dsh-work-x）。仅 symlink +
+  用户 patch 条目不够——运行时解析表只收 installation 闭包 + 选中 bundle 的闭包。
 - 资产路由是激活探针：`/plugins/<pkg>/assets/…` 对未激活/解析失败一律 404，
   活动条目 200（无需认证）。
 

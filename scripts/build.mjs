@@ -48,6 +48,7 @@ for (const id of themeIds) {
   const dsw = JSON.parse(readFileSync(join(dir, "dsw.json"), "utf8"));
   if (theme.id !== id) throw new Error(`themes/${id}/theme.json declares id "${theme.id}"`);
   themes[id] = {
+    name: theme.name ?? id,
     bgPos: `${Math.round(theme.art.focusX * 100)}% ${Math.round(theme.art.focusY * 100)}%`,
     dRgb: hexToSpaceTriplet(theme.colors.background),
     lRgb: dsw.scrimLightRgb,

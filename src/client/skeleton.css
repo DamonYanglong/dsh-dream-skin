@@ -69,3 +69,27 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
     linear-gradient(90deg, var(--dsb-shade-1) 0%, var(--dsb-shade-2) 48%, var(--dsb-shade-3) 100%),
     var(--dsb-bg) !important;
 }
+
+/* ---- 设置行（不挂 data-dsb-on 门控：off 态也要正常渲染；色值全走语义 token，
+        官方壳与皮肤壳下都成立）---- */
+.dsb_settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+}
+.dsb_settingsRowTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size, 14px);
+}
+.dsb_themeSelect {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm, 6px);
+  padding: 4px 8px;
+  font-size: var(--dsh-content-font-size, 14px);
+  min-width: 140px;
+}

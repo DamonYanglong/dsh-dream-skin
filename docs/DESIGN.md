@@ -286,9 +286,12 @@ M1 是**证伪点**：若产物形态复刻不被接受或 token 覆盖层不达
 读 volatile 字段（ui-chat 先例），写入经 Host settings 持久化到
 profile patch。自动表单暂无 UI 渲染方，M2 需自注册设置行 slot。
 
-**热重载边界（新发现）**：宿主不 watch patch 文件；reconcile 仅由
-config-editor 保存 / plugin-manager 操作触发。手工改 patch 后需 GUI 触发
-一次（或重启宿主）。资产路由 404/200 可作激活探针。
+**热重载边界（新发现，M1 末期修正）**：dsh-hmr watch profile patch 与
+manifest（2s 防抖；manifest 仅 `dsh.profile.bundles` 有序列表变化触发），
+重组合会**热替换链接包的构建产物**——开发闭环 = rebuild + 轻碰 patch，
+无需重启或 GUI 操作。**profile 本地包必须做成 bundle**（`dsh.bundle.patch` +
+bundles 列表 + insert 行，参照 dsh-work-x）才可被 Loader 解析；仅 symlink +
+用户 patch 条目不入运行时解析表。资产路由 404/200 作激活探针。
 
 **简化决策**：scrim 端点组不做 JS 切换——`:has(body[data-ds-dark-theme])`
 纯 CSS 分组 + `html[data-dsb-on]` 总门控；对话页判据
