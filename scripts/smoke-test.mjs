@@ -315,7 +315,7 @@ assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel f
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
-assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "76% 45%");
+assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "center", "background centered (v10: position slider removed)");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
@@ -326,6 +326,10 @@ assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.250", "scrim strength scales with visibility (25/100)");
 assert.ok(styleTags()[0].textContent.includes("calc(0.9 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
+assert.ok(
+	styleTags()[0].textContent.includes("html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {"),
+	"generic fallback layer rule covers imported theme ids",
+);
 assert.ok(styleTags()[0].textContent.includes("var(--dsb-a-base"), "generated rule consumes alpha vars");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
 assert.ok(
@@ -360,15 +364,9 @@ assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider live-tunes a
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.100", "slider scales scrim strength too (10/100)");
 formWrites.length = 0;
 
-// ---------- 场景 6c：横向位置滑杆 → 默认跟随主题 art，拖动固定并持久化 ----------
+// ---------- 场景 6c：面板只保留透出度滑杆（v10 移除位置滑杆） ----------
 const sliders = [...allNodes(pageTree)].filter((n) => n.type === "input" && n.props.type === "range");
-assert.equal(sliders.length, 2, "visibility + position sliders");
-const posSlider = sliders[1];
-assert.equal(posSlider.props.value, 76, "position defaults to theme art.focusX (bgPosX=-1)");
-posSlider.props.onChange({ target: { value: "30" } });
-assert.deepEqual(formWrites, [{ field: "bgPosX", value: 30 }], "position persists through configForms");
-assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "30% 45%", "position live-updates the canvas var");
-formWrites.length = 0;
+assert.equal(sliders.length, 1, "visibility slider only");
 
 // ---------- 场景 7：切回 off → 完整还原 ----------
 settingsValue = { theme: "off" };

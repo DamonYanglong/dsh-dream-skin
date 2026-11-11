@@ -18,7 +18,8 @@ export const THEME_IDS = ["off", "gothic-void-crusade"];
 /**
  * theme：任意字符串——内置 id 或导入的皮肤 id（导入集是运行时的，
  * 无法进静态 schema；未知 id 客户端安全退化为 off）。
- * bgPosX：-1 = 跟随主题 art.focusX；0–100 = 用户固定横向位置。
+ * bgPosX：v10 起不再使用（背景固定居中）；字段保留以免历史持久化值
+ * 触发 schema 校验失败，值被忽略。
  */
 export const Config = z.object({
   theme: z.string().default("off").volatile(),

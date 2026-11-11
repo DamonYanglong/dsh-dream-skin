@@ -62,7 +62,6 @@ const LOCALE = {
 		"panel.import.fail": "导入失败",
 		"panel.remove": "删除",
 		"panel.visibility": "背景透出度",
-		"panel.pos": "背景横向位置",
 	},
 	en: {
 		"row.title": "Skin",
@@ -80,7 +79,6 @@ const LOCALE = {
 		"panel.import.fail": "Import failed",
 		"panel.remove": "Remove",
 		"panel.visibility": "Background visibility",
-		"panel.pos": "Horizontal position",
 	},
 };
 
@@ -188,10 +186,6 @@ function apply(ctx) {
 		const n = form.getSnapshot().value?.visibility;
 		return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : DEFAULT_VISIBILITY;
 	};
-	const readBgPosX = () => {
-		const n = form.getSnapshot().value?.bgPosX;
-		return Number.isFinite(n) ? Math.min(100, Math.max(-1, n)) : -1;
-	};
 
 	/** 导入主题表（Host list 路由填充；id -> manifest）。 */
 	const imported = new Map();
@@ -237,7 +231,6 @@ function apply(ctx) {
 	const root = document.documentElement;
 	let current = "off";
 	let currentVis = DEFAULT_VISIBILITY;
-	let currentPosX = -1;
 	let disposeOverride = null;
 
 	const removeOverride = () => {
@@ -260,14 +253,13 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-scrim-k", ((100 - Math.min(100, Math.max(0, v))) / 100).toFixed(3));
 	};
 
-	/** 生效横向位置：用户值（0–100）优先，否则主题 art。 */
-	const effectivePosX = (def, userX) => (userX >= 0 ? Math.round(userX) : Math.round(def.fx * 100));
-	const applyPos = (def, userX) => {
-		root.style.setProperty("--dsb-bg-pos", `${effectivePosX(def, userX)}% ${Math.round(def.fy * 100)}%`);
+	/** 背景画布定位：居中 + cover 随窗口自适应（v10 用户决策，移除位置滑杆）。 */
+	const applyPos = () => {
+		root.style.setProperty("--dsb-bg-pos", "center");
 	};
 
 	/** 应用主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册）。 */
-	const applyTheme = (id, v, posX) => {
+	const applyTheme = (id, v) => {
 		const def = themeDefOf(id);
 		if (def === undefined) return;
 		root.style.setProperty("--dsb-bg", `url("${def.bgUrl}")`);
@@ -275,17 +267,16 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-l-rgb", def.lRgb);
 		root.setAttribute("data-dsb-on", "");
 		root.setAttribute("data-dsb-theme", id);
-		applyPos(def, posX);
+		applyPos();
 		applyAlphas(def, v);
 		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 		current = id;
 	};
 
-	/** 跟随设置表单（theme / visibility / bgPosX 任一变化）。 */
+	/** 跟随设置表单（theme / visibility 变化）。 */
 	const sync = () => {
 		const value = readTheme();
 		const v = readVisibility();
-		const posX = readBgPosX();
 		if (value === "off" || themeDefOf(value) === undefined) {
 			if (current !== "off") {
 				removeOverride();
@@ -295,18 +286,13 @@ function apply(ctx) {
 			return;
 		}
 		if (value !== current) {
-			applyTheme(value, v, posX);
+			applyTheme(value, v);
 			currentVis = v;
-			currentPosX = posX;
 			return;
 		}
 		if (v !== currentVis) {
 			applyAlphas(themeDefOf(value), v);
 			currentVis = v;
-		}
-		if (posX !== currentPosX) {
-			applyPos(themeDefOf(value), posX);
-			currentPosX = posX;
 		}
 	};
 	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
@@ -389,16 +375,6 @@ function apply(ctx) {
 			if (def !== undefined) applyAlphas(def, clamped);
 			form.set("visibility", clamped);
 		};
-		const slidePos = (n) => {
-			if (!Number.isFinite(n)) return;
-			const clamped = Math.min(100, Math.max(0, n));
-			const def = themeDefOf(value);
-			if (def !== undefined) {
-				applyPos(def, clamped);
-				setValue(value); // 触发重渲染（pos 不入组件 state）
-			}
-			form.set("bgPosX", clamped);
-		};
 		const removeImported = (id) => {
 			apiJson("api/dsh-dream-skin/remove", { method: "POST", body: JSON.stringify({ id }) })
 				.then(() => refreshImported())
@@ -453,7 +429,6 @@ function apply(ctx) {
 		};
 		const def = themeDefOf(value);
 		const tunable = def !== undefined;
-		const posNow = tunable ? effectivePosX(def, readBgPosX()) : 50;
 		const builtinCards = [
 			react.createElement(ThemeCard, {
 				key: "off",
@@ -533,19 +508,6 @@ function apply(ctx) {
 								step: 1,
 								value: vis,
 								onChange: (event) => slideVis(Number(event.target.value)),
-							}),
-						),
-						react.createElement(
-							"label",
-							{ className: "dsb_panelSlider" },
-							react.createElement("span", { className: "dsb_panelSliderLabel" }, t("panel.pos")),
-							react.createElement("input", {
-								type: "range",
-								min: 0,
-								max: 100,
-								step: 1,
-								value: posNow,
-								onChange: (event) => slidePos(Number(event.target.value)),
 							}),
 						),
 					)

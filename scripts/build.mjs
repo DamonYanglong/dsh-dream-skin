@@ -86,6 +86,17 @@ for (const id of themeIds) {
     );
   }
 }
+// 通用兜底规则（不带主题 id 门控）：导入主题（运行时 id，构建期未知）走
+// 默认 alpha 阶梯；内置主题的专属规则特异性更高，仍优先。
+layerRules.push(
+  `/* 导入主题兜底：默认材质阶梯（62/62/72/82），任何 data-dsb-theme 值均命中；\n * ` +
+    `内置主题的专属规则（上方）特异性更高、覆盖本条 */\n` +
+    `html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {\n` +
+    `\t--dsw-alias-bg-base: rgb(var(--dsb-d-rgb) / var(--dsb-a-base, 62%));\n` +
+    `\t--dsw-alias-bg-layer-1: rgb(var(--dsb-d-rgb) / var(--dsb-a-1, 62%));\n` +
+    `\t--dsw-alias-bg-layer-2: rgb(var(--dsb-d-rgb) / var(--dsb-a-2, 72%));\n` +
+    `\t--dsw-alias-bg-layer-3: rgb(var(--dsb-d-rgb) / var(--dsb-a-3, 82%));\n}`,
+);
 
 // ---------- 资产 ----------
 const outLib = join(root, "lib");
