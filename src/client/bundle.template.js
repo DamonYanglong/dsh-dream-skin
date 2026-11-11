@@ -1,5 +1,5 @@
 /*
- * dsh-dream-skin · client bundle 模板（M1 手工产物形态 + M2 设置行）
+ * dsh-dream-skin · client bundle 模板（M2 v4）
  *
  * scripts/build.mjs 把本文件包进 ModuleLoader factory：
  *   window.__ModuleLoader__.load({ id: "dsh-dream-skin", factory: (require) => {...} })
@@ -9,27 +9,32 @@
  * bundle 只注册 factory，副作用在物化时运行；资产引用编译为
  * require.asset("plugins/<pkg>/assets/<emitted path>") 同步调用。
  *
- * 外部模块请求须在平台静态表内（壳 bundle 的 YZ() 种子表，实测 2026-11-11）：
- *   react / react/jsx-runtime / react-dom / react-dom/client / @deepseek-ai/cordis
- *   / zod / @tanstack/react-virtual / @deepseek-ai/dsh-client-store
- *   / @deepseek-ai/dsh-client-ui-slots / @deepseek-ai/dsh-client-ui-primitives
- *   / @deepseek-ai/dsh-client-ui-dockkit —— 无需 dsh.client.inject 声明。
+ * 契约来源（v4 起全部为权威文档/在线 inspect，不再逆向压缩产物）：
+ *   - require("react")：平台静态表（decoration 官方模板同款）。
+ *     禁止 require 任何 Harness Client 包（dsh-client-store / ui-primitives 等）——
+ *     practices.md 明文：第三方插件不得把 Harness Client 包当模块加载，
+ *     第一方设置行的 store/inject(actions) 组装是平台内部通道，不对第三方开放。
+ *   - ctx.theme.overrideTokens(source, tokens)：ui-theme README「Registering a theme」
+ *     （第三方主题 = 别名 token 覆盖层；id 不进内置设置 schema）。
+ *   - ctx.configForms.get(entryId) + form.set / getSnapshot / subscribe：
+ *     ui-settings README「Configuration forms」——entryId = profile Loader 条目 id，
+ *     持久化经 Host settings 服务写入 profile patch，皮肤不自建存储。
+ *   - ctx.locale.register(ns, dicts) / ctx.locale.bind(ns)：Client Service 目录。
+ *   - ctx.slots.inject("settings.general.item", ...) + register({name,id,order,label}, Row)：
+ *     Slots 在线目录——注册选项仅 id/order/label；行内容与行为完全由注册者自绘
+ *     （ui-settings-general README：「Each registrant owns its row copy and behavior」，
+ *     宿主不传 store/actions props）。Row 组件必须自包含：状态订阅 configForms、
+ *     文案走 locale、控件按官方 token 自绘。
  *
- * store 契约（首试翻车点）：defineStore(spec) 返回 {spec, create} 工厂；
- * 把工厂作为 options.store 传给 slots.register，宿主物化时调 create(scopeKey)
- * 得到句柄，并把 spec.actions 的方法包成 actions 经 inject(actions) 回调传入。
- * 插件侧绝不直接调工厂上的方法（工厂上没有）。
- *
- * 服务依赖经 cordis inject 声明：
- *   theme（覆盖层 API）、configForms（设置镜像）、locale（设置行文案）、slots（设置行注册）。
+ * 服务依赖经 cordis inject 声明（缺失则条目不激活，皮肤整体安全失败）：
+ *   theme（覆盖层 API）、configForms（设置表单）、locale（行文案）、slots（行注册）。
  */
 
 const react = require("react");
-const { defineStore } = require("@deepseek-ai/dsh-client-store");
 
 const PACKAGE_ID = "dsh-dream-skin";
-/** volatile Config 命名空间 = profile 条目 id（dsh-settings describe 约定）。 */
-const SETTINGS_NS = "dsh-dream-skin";
+/** volatile Config 命名空间 = profile 条目 id（ui-settings「Configuration forms」）。 */
+const ENTRY_ID = "dsh-dream-skin";
 /** 设置行文案命名空间（ctx.locale.register）。 */
 const LOCALE_NS = "dsh-dream-skin";
 /** 骨架样式表（唯一全局样式表，见 skeleton.css 注释）。 */
@@ -54,58 +59,17 @@ const LOCALE = {
 	},
 };
 
-/** Required services: theme runtime, settings mirror, locale, slots. */
+/** Required services: theme runtime, settings forms, locale, slots. */
 const inject = ["theme", "configForms", "locale", "slots"];
 
-/** 主题下拉选项（off + 构建期主题表）。 */
-function themeOptions(t) {
-	return [
-		{ id: "off", label: t("row.theme.off") },
-		...Object.keys(THEMES).map((id) => ({ id, label: THEMES[id].name ?? id })),
-	];
-}
-
 /**
- * 设置行组件：皮肤选择（契约 = ui-theme AppearanceRow：props 收
- * { t, useStore, ...inject 回调返回的 actions }；useStore 由宿主从
- * options.store 工厂物化后提供）。
- */
-function ThemeRow({ t, setTheme, useStore }) {
-	const value = useStore((s) => s.theme);
-	const options = themeOptions(t);
-	return react.createElement(
-		"div",
-		{ className: "dsb_settingsRow" },
-		react.createElement("div", { className: "dsb_settingsRowTitle" }, t("row.title")),
-		react.createElement(
-			"div",
-			{ className: "dsb_settingsRowControl" },
-			react.createElement(
-				"select",
-				{
-					className: "dsb_themeSelect",
-					value,
-					onChange: (event) => {
-						setTheme(event.target.value);
-					},
-				},
-				options.map(({ id, label }) =>
-					react.createElement("option", { key: id, value: id }, label),
-				),
-			),
-		),
-	);
-}
-
-/**
- * Client plugin body：挂骨架样式表 + 浮动切换按钮 + 设置行（各自独立防抖：
- * 任一环节抛错都记录到 html[data-dsb-error] 并继续，不再让诊断盲区炸掉整个条目）。
+ * Client plugin body：挂骨架样式表、跟随设置表单应用皮肤、注册自绘设置行。
  * @param ctx Client root context.
  */
 function apply(ctx) {
 	if (typeof document === "undefined") return;
 
-	/** 把错误记录到 DOM（data-dsb-error）并打到控制台；浮动按钮也会显示它。 */
+	/** 把错误记录到 DOM（data-dsb-error）并打到控制台，便于真机诊断。 */
 	const reportError = (stage, error) => {
 		try {
 			const message = `${stage}: ${error instanceof Error ? `${error.message}` : String(error)}`;
@@ -116,8 +80,7 @@ function apply(ctx) {
 		}
 	};
 
-	// 1. 骨架样式表（CSS Modules 等价物：插件持有的全局样式，
-	//    <style data-plugin-css="<pkg>/<file>">，dispose/HMR 时移除）
+	// 1. 骨架样式表（插件持有的全局样式，dispose/HMR 时移除）
 	ctx.effect(() => {
 		const tag = document.createElement("style");
 		tag.dataset.plugin = PACKAGE_ID;
@@ -129,26 +92,19 @@ function apply(ctx) {
 		};
 	}, `${PACKAGE_ID}: skeleton stylesheet`);
 
+	// 2. 文案：注册词典 + 绑定翻译函数（bind 在调用时按当前 locale 取词）
+	ctx.effect(() => ctx.locale.register(LOCALE_NS, LOCALE), `${PACKAGE_ID}: dictionaries`);
+	const t = ctx.locale.bind(LOCALE_NS);
+
+	// 3. 设置表单（ui-settings 公共边界）：读 accepted value、写经 Host 持久化
+	const form = ctx.configForms.get(ENTRY_ID);
+	/** 镜像未就绪时 value 为 undefined → 视为 off。 */
+	const readTheme = () => form.getSnapshot().value?.theme ?? "off";
+
 	const root = document.documentElement;
 	const body = document.body;
 	let current = "off";
 	let disposeOverride = null;
-	let mirrorSeq = 0;
-	/** 宿主物化设置行 store 后经 inject(actions) 传入的动作包（ui-theme bound 模式）。 */
-	let rowActions = null;
-
-	/** 设置行 store 工厂（契约 = ui-theme createAppearanceRowStore：revision 单调防回放；
-	 *    工厂交给宿主，宿主 create(scopeKey) 物化，actions 经 inject 回调返回）。 */
-	const rowStoreFactory = defineStore({
-		init: () => ({ theme: "off", revision: -1 }),
-		actions: {
-			sync: (draft, theme, revision) => {
-				if (revision <= draft.revision) return;
-				draft.theme = theme;
-				draft.revision = revision;
-			},
-		},
-	});
 
 	/** 移除 token 覆盖层（基主题不动，移除即还原官方值）。 */
 	const removeOverride = () => {
@@ -165,12 +121,7 @@ function apply(ctx) {
 	/** 应用一个主题：画布参数 + token 覆盖层（幂等注册，同 source 整层替换）。 */
 	const applyTheme = (id) => {
 		const theme = THEMES[id];
-		if (theme === undefined) {
-			clearCanvas();
-			removeOverride();
-			current = "off";
-			return;
-		}
+		if (theme === undefined) return;
 		body.style.setProperty("--dsb-bg", `url("${BG_URL}")`);
 		body.style.setProperty("--dsb-bg-pos", theme.bgPos);
 		body.style.setProperty("--dsb-d-rgb", theme.dRgb);
@@ -180,40 +131,11 @@ function apply(ctx) {
 		current = id;
 	};
 
-	// 2. 浮动切换按钮（纯 DOM，零框架契约：诊断时代的主题管理入口，
-	//    点击在 off ↔ 主题间切换，写入走 configForms 官方持久化路径）
-	let pill = null;
-	const pillSync = (value) => {
-		if (pill === null) return;
-		pill.textContent = value === "off" ? "皮肤：官方" : `皮肤：${THEMES[value]?.name ?? value}`;
-		pill.title = "dsh-dream-skin：点击切换皮肤";
-	};
-	ctx.effect(() => {
-		pill = document.createElement("button");
-		pill.type = "button";
-		pill.className = "dsb_pill";
-		pill.addEventListener("click", () => {
-			const next = current === "off" ? Object.keys(THEMES)[0] : "off";
-			if (next !== "off" && THEMES[next] === undefined) return;
-			settings.set("theme", next);
-		});
-		document.body.appendChild(pill);
-		pillSync(current);
-		return () => {
-			pill.remove();
-			pill = null;
-		};
-	}, `${PACKAGE_ID}: theme pill`);
-
-	// 3. 跟随设置镜像（volatile theme 字段经 Host settings 投影，
-	//    镜像未就绪时 value 为 undefined → 视为 off）
-	const settings = ctx.configForms.get(SETTINGS_NS);
+	/** 跟随设置表单（写答案折入共享镜像；连接重置/文档更新均触发订阅）。 */
 	const sync = () => {
-		const value = settings.getSnapshot().value?.theme ?? "off";
-		rowActions?.sync(value, ++mirrorSeq);
-		pillSync(value);
+		const value = readTheme();
 		if (value === current) return;
-		if (value === "off") {
+		if (value === "off" || THEMES[value] === undefined) {
 			removeOverride();
 			clearCanvas();
 			current = "off";
@@ -221,10 +143,66 @@ function apply(ctx) {
 		}
 		applyTheme(value);
 	};
-	ctx.effect(() => settings.subscribe(sync), `${PACKAGE_ID}: settings mirror`);
+	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
 	sync();
 
-	// 4. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题/读错误）
+	/**
+	 * 设置行组件（自包含契约）：宿主不传 props——状态自订阅 configForms、
+	 * 文案走 locale、控件按官方 token 自绘（practices.md：第三方不得加载
+	 * Harness Client 包，样式只依赖 --dsw-alias-* 语义 token）。
+	 */
+	function SkinRow() {
+		const [value, setValue] = react.useState(readTheme);
+		react.useEffect(() => form.subscribe(() => setValue(readTheme())), []);
+		const options = [
+			{ id: "off", label: t("row.theme.off") },
+			...Object.keys(THEMES).map((id) => ({ id, label: THEMES[id].name ?? id })),
+		];
+		return react.createElement(
+			"div",
+			{ className: "dsb_settingsRow" },
+			react.createElement("div", { className: "dsb_settingsRowTitle" }, t("row.title")),
+			react.createElement(
+				"div",
+				{ className: "dsb_settingsRowControl" },
+				react.createElement(
+					"select",
+					{
+						className: "dsb_themeSelect",
+						value,
+						onChange: (event) => {
+							const id = event.target.value;
+							if (id === "off" || THEMES[id] !== undefined) form.set("theme", id);
+						},
+					},
+					options.map(({ id, label }) =>
+						react.createElement("option", { key: id, value: id }, label),
+					),
+				),
+			),
+		);
+	}
+
+	// 4. 注册设置行（「通用」分区；注册选项仅 id/order/label——Slots 目录实测，
+	//    label 支持跟随 locale 的 thunk）。独立防抖：异常记录到 data-dsb-error，
+	//    皮肤画布逻辑（步骤 3）不受影响。
+	try {
+		ctx.slots.inject("settings.general.item", () =>
+			ctx.slots.register(
+				{
+					name: "settings.general.item",
+					id: "dream-skin",
+					order: 13,
+					label: () => t("row.title"),
+				},
+				SkinRow,
+			),
+		);
+	} catch (error) {
+		reportError("settings-row", error);
+	}
+
+	// 5. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题；dispose 时清除）
 	ctx.effect(() => () => {
 		delete window.__dsb__;
 	}, `${PACKAGE_ID}: debug handle`);
@@ -235,44 +213,12 @@ function apply(ctx) {
 		themes: Object.keys(THEMES),
 		setTheme: (id) => {
 			if (id !== "off" && THEMES[id] === undefined) return false;
-			settings.set("theme", id);
+			form.set("theme", id);
 			return true;
 		},
 	};
 
-	// 5. 设置行（「通用」分区，契约 = ui-theme appearance 行 + client/AGENTS.md
-	//    规则 6/7：store 句柄在 apply 内创建、inject 返回纯数据与回调。
-	//    独立防抖：此环节任何异常记录到 html[data-dsb-error]，浮动按钮仍在）
-	try {
-		ctx.effect(() => ctx.locale.register(LOCALE_NS, LOCALE), `${PACKAGE_ID}: settings row dictionaries`);
-		ctx.slots.inject("settings.general.item", () =>
-			ctx.slots.register(
-				{
-					name: "settings.general.item",
-					id: "dream-skin",
-					order: 13,
-					store: rowStoreFactory,
-					locale: LOCALE_NS,
-					inject: (actions) => {
-						rowActions = actions;
-						sync();
-						return {
-							/** 写入经 Host settings 持久化到 profile patch（官方机制）。 */
-							setTheme: (id) => {
-								if (id !== "off" && THEMES[id] === undefined) return;
-								settings.set("theme", id);
-							},
-						};
-					},
-				},
-				ThemeRow,
-			),
-		);
-	} catch (error) {
-		reportError("settings-row", error);
-	}
-
-	// 6. 兜底 teardown（dispose/HMR：样式表由 effect 1 移除，这里收覆盖层与画布）
+	// 6. 兜底 teardown（dispose/HMR：样式表由步骤 1 移除，这里收覆盖层与画布）
 	ctx.effect(() => () => {
 		removeOverride();
 		clearCanvas();

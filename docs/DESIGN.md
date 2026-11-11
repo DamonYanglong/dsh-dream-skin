@@ -284,7 +284,8 @@ M1 是**证伪点**：若产物形态复刻不被接受或 token 覆盖层不达
 
 **配置通道校准**：ns = profile 条目 id；客户端 `ctx.configForms.get(ns)`
 读 volatile 字段（ui-chat 先例），写入经 Host settings 持久化到
-profile patch。自动表单暂无 UI 渲染方，M2 需自注册设置行 slot。
+profile patch。~~自动表单暂无 UI 渲染方，M2 需自注册设置行 slot~~
+（M2 v4 修正：设置行是 `settings.general.item` 自绘席位，见下方 M2 记录）。
 
 **热重载边界（新发现，M1 末期修正）**：dsh-hmr watch profile patch 与
 manifest（2s 防抖；manifest 仅 `dsh.profile.bundles` 有序列表变化触发），
@@ -297,6 +298,38 @@ bundles 列表 + insert 行，参照 dsh-work-x）才可被 Loader 解析；仅 
 纯 CSS 分组 + `html[data-dsb-on]` 总门控；对话页判据
 `:has([data-conversation-scroll])`；浅壳 token 一律官方原值表达式
 （gothic 只出暗套，天然满足 §5.2）。
+
+---
+
+### M2 执行记录（2026-11-11 · v4 思路修正）
+
+**v1–v3 的错误路线（及教训）**：设置行先是外链 `require("@deepseek-ai/dsh-client-store")`
+（v1 引发 web boot 崩溃），后在 v2/v3 里逆向压缩产物猜 `defineStore → {spec,create}`
+工厂 + `options.store` + `inject(actions)` 契约——这是第一方包
+（ui-theme AppearanceRow）经平台内部通道（dsh-client-store 模块 + standardHookProps
+组装）的私有机制，**不对第三方开放**，行组件等待的 props 宿主根本不传
+（slot 条目静默崩溃），设置行从未出现。
+
+**权威契约（v4 全部落到文档/在线 inspect，不再逆向产物）**：
+
+1. `settings.general.item` 注册选项**仅 `id` / `order` / `label**
+   （`Slots.listSubTree` 实测）；label 支持 locale thunk。
+   ui-settings-general README：「Each registrant owns its row copy and behavior」
+   ——行组件必须**自包含**：状态自订阅 `configForms`、文案走 `ctx.locale.bind`、
+   控件按官方 `--dsw-alias-*` token 自绘（practices.md：第三方禁止把任何
+   Harness Client 包当模块 require；禁止往 `document.body` 追加元素——v3 的
+   纯 DOM 浮动按钮也一并撤掉，官方全页浮层席位是 `shell.overlay`）。
+2. 持久化正门 = 官方 settings 边界（M1 已实测的部分本来就对）：
+   Host 半侧 volatile Config `theme` 字段 + 客户端 `ctx.configForms.get(entryId)`
+   的 `getSnapshot/subscribe/set`（ui-settings README「Configuration forms」；
+   ui-settings-general 自己的 `welcomeNoticeVersion` 就是这个模式的官方范例）。
+3. 皮肤引擎（骨架样式表 + `overrideTokens` + `--dsb-*` 画布变量 + `off` 完整还原）
+   自 M1 起未变；v4 只重写了设置行与清理了诊断产物。
+
+**冒烟测试同步升级**：react stub 实现 `createElement/useState/useEffect`
+（setState 触发重渲染），slots stub 只接受 `{name,id,order,label}`（出现越界
+注册项直接失败），行组件以**无 props** 物化渲染——v2 那类「内部契约猜错」
+的 bug 现在本地就会被打出来。
 
 ---
 

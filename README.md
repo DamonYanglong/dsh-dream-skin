@@ -7,7 +7,7 @@
 工程范式从「CDP 注入」迁移到「DSH 插件体系」——无调试端口、无 app 改写，
 安装即组合，卸载即还原。
 
-**状态：M1 实现完成**（最小 bundle 真机验证中）。设计见 [docs/DESIGN.md](docs/DESIGN.md)。
+**状态：M2 进行中**（皮肤本体真机验证通过；设置行 v4 重写，见 [docs/DESIGN.md](docs/DESIGN.md) M2 记录）。
 
 ## 工作原理（一句话版）
 
@@ -22,8 +22,9 @@ npm install && npm run build     # lib/{index.js,client.js,assets/}
 node scripts/smoke-test.mjs      # 状态机冒烟（挂载/off/还原/清理）
 ```
 
-本地挂载（开发流程）见 [scripts/README.md](scripts/README.md)。要点：宿主不自动
-重读 profile patch，需在 GUI 插件页触发 reconcile。
+本地挂载（开发流程）见 [scripts/README.md](scripts/README.md)。要点：dsh-hmr
+watch profile patch 与 manifest（2s 防抖），重组合会热替换链接包的构建产物——
+改完代码 `npm run build` 后轻碰 patch 一行注释即可，无需重启。
 
 ## 文档
 
