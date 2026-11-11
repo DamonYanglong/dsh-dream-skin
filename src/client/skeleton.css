@@ -104,8 +104,7 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
   min-width: 140px;
 }
 
-/* ---- 皮肤面板（main 栏整页；不挂 data-dsb-on 门控：off 态也要正常渲染；
-        色值全走语义 token，官方壳与皮肤壳下都成立）---- */
+/* ---- 皮肤面板（main 栏整页）---- */
 .dsb_panel {
   padding: 24px 28px;
   max-width: 720px;
@@ -120,6 +119,61 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
   margin: 0 0 20px;
   color: var(--dsw-alias-label-secondary);
   font-size: var(--dsh-content-font-size, 14px);
+}
+.dsb_sectionTitle {
+  margin: 18px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-tertiary);
+  letter-spacing: 0.02em;
+}
+.dsb_importHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dsb_importHead .dsb_sectionTitle {
+  margin-bottom: 10px;
+}
+.dsb_importButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+}
+.dsb_importButton:hover {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+.dsb_importButton.dsb_busy {
+  opacity: 0.6;
+  cursor: wait;
+}
+.dsb_importButton input[type="file"] {
+  display: none;
+}
+.dsb_importError {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(220, 38, 38, 0.12));
+  border-radius: var(--dsw-radius-sm, 6px);
+}
+.dsb_panelSliders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  max-width: 420px;
 }
 .dsb_panelGrid {
   display: grid;
@@ -167,6 +221,33 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
 .dsb_cardHint {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
+}
+.dsb_cardRemove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.dsb_card:hover .dsb_cardRemove {
+  opacity: 1;
+}
+.dsb_cardRemove:hover {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l3);
+}
+.dsb_card {
+  position: relative;
 }
 
 /* ---- 背景透出度滑杆 ---- */

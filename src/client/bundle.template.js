@@ -1,33 +1,23 @@
 /*
- * dsh-dream-skin · client bundle 模板（M2 v4）
+ * dsh-dream-skin · client bundle 模板（M2 v9）
  *
  * scripts/build.mjs 把本文件包进 ModuleLoader factory：
  *   window.__ModuleLoader__.load({ id: "dsh-dream-skin", factory: (require) => {...} })
- * 并注入三个占位值：骨架 CSS 字符串、主题定义 JSON、背景图 require.asset 表达式
- * （注入点见下方 SKELETON_CSS / THEMES / BG_URL 三个 const 声明）。
- * 产物形态对齐 asar 内官方包（dsh-client-modules README「构建要求」）：
- * bundle 只注册 factory，副作用在物化时运行；资产引用编译为
- * require.asset("plugins/<pkg>/assets/<emitted path>") 同步调用。
+ * 并注入三个占位值：骨架 CSS 字符串、主题定义 JSON、背景图 require.asset 表达式。
  *
- * 契约来源（v4 起全部为权威文档/在线 inspect，不再逆向压缩产物）：
- *   - require("react")：平台静态表（decoration 官方模板同款）。
- *     禁止 require 任何 Harness Client 包（dsh-client-store / ui-primitives 等）——
- *     practices.md 明文：第三方插件不得把 Harness Client 包当模块加载，
- *     第一方设置行的 store/inject(actions) 组装是平台内部通道，不对第三方开放。
- *   - ctx.theme.overrideTokens(source, tokens)：ui-theme README「Registering a theme」
- *     （第三方主题 = 别名 token 覆盖层；id 不进内置设置 schema）。
- *   - ctx.configForms.get(entryId) + form.set / getSnapshot / subscribe：
- *     ui-settings README「Configuration forms」——entryId = profile Loader 条目 id，
- *     持久化经 Host settings 服务写入 profile patch，皮肤不自建存储。
- *   - ctx.locale.register(ns, dicts) / ctx.locale.bind(ns)：Client Service 目录。
- *   - ctx.slots.inject("settings.general.item", ...) + register({name,id,order,label}, Row)：
- *     Slots 在线目录——注册选项仅 id/order/label；行内容与行为完全由注册者自绘
- *     （ui-settings-general README：「Each registrant owns its row copy and behavior」，
- *     宿主不传 store/actions props）。Row 组件必须自包含：状态订阅 configForms、
- *     文案走 locale、控件按官方 token 自绘。
+ * 契约来源（全部为权威文档/在线 inspect）：
+ *   - require("react")：平台静态表（官方 decoration 模板同款）；禁止 require
+ *     任何 Harness Client 包（practices.md）。
+ *   - ctx.theme.overrideTokens(source, tokens)：ui-theme README。
+ *   - ctx.configForms.get(entryId)：ui-settings README（volatile 字段镜像）。
+ *   - ctx.slots.inject/register：Slots 目录 + slot-catalog.ts。
+ *   - Host 半侧路由 /api/dsh-dream-skin/*：skill-explorer 同款
+ *     webServer exact 路由 + 同源 fetch（document-relative，无前导斜杠——
+ *     GUI 带 <base href>，根绝对路径会逃出子路径部署）。
  *
- * 服务依赖经 cordis inject 声明（缺失则条目不激活，皮肤整体安全失败）：
- *   theme（覆盖层 API）、configForms（设置表单）、locale（行文案）、slots（行注册）。
+ * 主题模型（v9）：内置主题（构建期烘焙）与导入主题（~/.dsh/dream-skins，
+ * Host list 路由枚举）在运行时统一为 themeDef：{name, fx, fy, dRgb, lRgb,
+ * alphas, tokens, bgUrl}；导入主题的 tokens/alpha 由 colors 现场推导。
  */
 
 const react = require("react");
@@ -39,18 +29,22 @@ const ENTRY_ID = "dsh-dream-skin";
 const LOCALE_NS = "dsh-dream-skin";
 /** 骨架样式表（唯一全局样式表，见 skeleton.css 注释）。 */
 const SKELETON_CSS = __SKELETON_CSS_PLACEHOLDER__;
-/** 主题定义（构建期从 themes/<id>/ 生成：参数 + 覆盖层 token）。 */
+/** 内置主题定义（构建期从 themes/<id>/ 生成）。 */
 const THEMES = __THEMES_PLACEHOLDER__;
-/** 背景图 URL（构建期资产管线：内容哈希文件名 + require.asset 调用）。 */
+/** 内置背景图 URL（构建期资产管线）。 */
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
 const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
 
-/** 背景透出度默认值（0–100，越高背景图越透出；与 Host Config 默认一致）。 */
+/** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
+/** 导入主题的默认材质 alpha 阶梯（DESIGN §5.1）。 */
+const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82 };
+/** 浅壳 scrim 底色兜底（zds 浅组 panel 色）。 */
+const DEFAULT_L_RGB = "248 243 230";
 
-/** 设置行 + 面板文案（M2：zh/en 先行，M4 分发前补齐 locale/*.json 八语）。 */
+/** 文案（M2：zh/en 先行）。 */
 const LOCALE = {
 	zh: {
 		"row.title": "皮肤",
@@ -58,9 +52,17 @@ const LOCALE = {
 		"panel.label": "皮肤",
 		"panel.title": "皮肤",
 		"panel.subtitle": "为整个界面换上背景图与主题色",
-			"panel.theme.off": "官方默认",
+		"panel.theme.off": "官方默认",
 		"panel.theme.off.hint": "还原官方外观",
+		"panel.builtin": "内置主题",
+		"panel.imported": "导入的皮肤",
+		"panel.import": "导入皮肤",
+		"panel.import.hint": "选择一个主题文件夹（含 theme.json 与背景图，zcode-dream-skin 格式）",
+		"panel.import.busy": "导入中…",
+		"panel.import.fail": "导入失败",
+		"panel.remove": "删除",
 		"panel.visibility": "背景透出度",
+		"panel.pos": "背景横向位置",
 	},
 	en: {
 		"row.title": "Skin",
@@ -70,15 +72,83 @@ const LOCALE = {
 		"panel.subtitle": "Background art and theme colors for the whole interface",
 		"panel.theme.off": "Official default",
 		"panel.theme.off.hint": "Restore the stock appearance",
+		"panel.builtin": "Built-in themes",
+		"panel.imported": "Imported skins",
+		"panel.import": "Import skin",
+		"panel.import.hint": "Pick a theme folder (theme.json + background, zcode-dream-skin format)",
+		"panel.import.busy": "Importing…",
+		"panel.import.fail": "Import failed",
+		"panel.remove": "Remove",
 		"panel.visibility": "Background visibility",
+		"panel.pos": "Horizontal position",
 	},
 };
 
 /** Required services: theme runtime, settings forms, locale, slots. */
 const inject = ["theme", "configForms", "locale", "slots"];
 
+/* ---------- 小工具 ---------- */
+
+/** "#0d0d0e" → "13 13 14"（CSS 空格三元组）。 */
+function hexToTriplet(hex) {
+	const value = String(hex ?? "").trim().replace(/^#/, "");
+	if (!/^[0-9a-fA-F]{6}$/.test(value)) return null;
+	return [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16)).join(" ");
+}
+
+/** "#c8a55a" + 0.1 → "rgba(200, 165, 90 / 0.1)"（现代空格语法）。 */
+function hexAlpha(hex, a) {
+	const t = hexToTriplet(hex);
+	return t === null ? null : `rgb(${t} / ${a})`;
+}
+
+/** 导入主题的 token 覆盖层（DESIGN §5.1 核心映射；缺色用 gothic 系兜底）。 */
+function deriveTokens(colors) {
+	const text = colors.text ?? "#f3ead7";
+	const muted = colors.muted ?? "#b5a386";
+	const accent = colors.accent ?? "#c8a55a";
+	const line = hexToTriplet(colors.line ?? accent);
+	const line1 = line === null ? "rgb(200 165 90 / 0.1)" : `rgb(${line} / 0.1)`;
+	const line2 = line === null ? "rgb(200 165 90 / 0.16)" : `rgb(${line} / 0.16)`;
+	const light = (expr) => ({ light: expr, dark: "" });
+	return {
+		"--dsw-alias-label-primary": { light: "var(--dsw-static-neutral-bluish-1000)", dark: text },
+		"--dsw-alias-label-secondary": { light: "var(--dsw-static-neutral-bluish-700)", dark: muted },
+		"--dsw-alias-label-tertiary": { light: "var(--dsw-static-neutral-bluish-600)", dark: colors.muted2 ?? muted },
+		"--dsw-alias-border-l1": { light: "#0000000a", dark: line1 },
+		"--dsw-alias-border-l2": { light: "#0000001a", dark: line2 },
+		"--dsw-alias-state-business-primary": { light: "var(--dsw-static-deepseek-500)", dark: accent },
+		"--dsw-alias-link": { light: "var(--dsw-static-deepseek-500)", dark: colors.accentAlt ?? accent },
+		"--dsw-alias-interactive-bg-hover": {
+			light: "#2631480f",
+			dark: hexAlpha(accent, 0.1) ?? "rgb(200 165 90 / 0.1)",
+		},
+		"--dsw-alias-scrollbar-bg-l1": { light: "var(--dsw-static-neutral-200)", dark: hexAlpha(accent, 0.28) ?? "rgb(200 165 90 / 0.28)" },
+		"--dsw-alias-scrollbar-hover-l1": { light: "var(--dsw-static-neutral-300)", dark: hexAlpha(accent, 0.45) ?? "rgb(200 165 90 / 0.45)" },
+	};
+}
+
+/** ArrayBuffer → base64（分块，避免参数栈超限）。 */
+function bufferToBase64(buffer) {
+	const bytes = new Uint8Array(buffer);
+	let binary = "";
+	const CHUNK = 0x8000;
+	for (let i = 0; i < bytes.length; i += CHUNK) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+	}
+	return btoa(binary);
+}
+
+/** 同源 fetch 的 JSON 封装（document-relative 路径）。 */
+async function apiJson(path, init) {
+	const response = await fetch(path, init);
+	const body = await response.json().catch(() => ({}));
+	if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+	return body;
+}
+
 /**
- * Client plugin body：挂骨架样式表、跟随设置表单应用皮肤、注册自绘设置行。
+ * Client plugin body：挂骨架样式表、跟随设置表单应用皮肤、注册面板与设置行。
  * @param ctx Client root context.
  */
 function apply(ctx) {
@@ -95,7 +165,7 @@ function apply(ctx) {
 		}
 	};
 
-	// 1. 骨架样式表（插件持有的全局样式，dispose/HMR 时移除）
+	// 1. 骨架样式表
 	ctx.effect(() => {
 		const tag = document.createElement("style");
 		tag.dataset.plugin = PACKAGE_ID;
@@ -107,72 +177,116 @@ function apply(ctx) {
 		};
 	}, `${PACKAGE_ID}: skeleton stylesheet`);
 
-	// 2. 文案：注册词典 + 绑定翻译函数（bind 在调用时按当前 locale 取词）
+	// 2. 文案
 	ctx.effect(() => ctx.locale.register(LOCALE_NS, LOCALE), `${PACKAGE_ID}: dictionaries`);
 	const t = ctx.locale.bind(LOCALE_NS);
 
-	// 3. 设置表单（ui-settings 公共边界）：读 accepted value、写经 Host 持久化
+	// 3. 设置表单 + 导入主题登记表
 	const form = ctx.configForms.get(ENTRY_ID);
-	/** 镜像未就绪时 value 为 undefined → 视为 off。 */
 	const readTheme = () => form.getSnapshot().value?.theme ?? "off";
-	/** 背景透出度（0–100；镜像未就绪 → 默认值）。 */
 	const readVisibility = () => {
 		const n = form.getSnapshot().value?.visibility;
 		return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : DEFAULT_VISIBILITY;
 	};
+	const readBgPosX = () => {
+		const n = form.getSnapshot().value?.bgPosX;
+		return Number.isFinite(n) ? Math.min(100, Math.max(-1, n)) : -1;
+	};
+
+	/** 导入主题表（Host list 路由填充；id -> manifest）。 */
+	const imported = new Map();
+	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}`;
+	async function refreshImported() {
+		try {
+			const body = await apiJson("api/dsh-dream-skin/list");
+			imported.clear();
+			for (const m of Array.isArray(body.themes) ? body.themes : []) {
+				if (typeof m?.id === "string" && typeof m.image === "string") imported.set(m.id, m);
+			}
+		} catch (error) {
+			reportError("import-list", error);
+		}
+	}
+
+	/** 统一主题定义：内置（烘焙）与导入（manifest 推导）。 */
+	function themeDefOf(id) {
+		const builtin = THEMES[id];
+		if (builtin !== undefined) {
+			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: builtin.tokens, bgUrl: BG_URL, imported: false };
+		}
+		const m = imported.get(id);
+		if (m !== undefined) {
+			const base = hexToTriplet(m.colors?.background ?? "#0d0d0e") ?? "13 13 14";
+			return {
+				id,
+				name: m.name ?? id,
+				fx: Number.isFinite(Number(m.fx)) ? Number(m.fx) : 0.5,
+				fy: Number.isFinite(Number(m.fy)) ? Number(m.fy) : 0.5,
+				dRgb: base,
+				lRgb: DEFAULT_L_RGB,
+				alphas: DEFAULT_ALPHAS,
+				tokens: deriveTokens(m.colors ?? {}),
+				bgUrl: importedUrl(m),
+				imported: true,
+			};
+		}
+		return undefined;
+	}
+	const anyTheme = (id) => id === "off" || THEMES[id] !== undefined || imported.has(id);
 
 	const root = document.documentElement;
 	let current = "off";
 	let currentVis = DEFAULT_VISIBILITY;
+	let currentPosX = -1;
 	let disposeOverride = null;
 
-	/** 移除 token 覆盖层（基主题不动，移除即还原官方值）。 */
 	const removeOverride = () => {
 		disposeOverride?.();
 		disposeOverride = null;
 	};
 
-	/** 清空骨架画布变量 + 关闭 html 门控属性（完整还原官方外观）。 */
 	const clearCanvas = () => {
 		root.removeAttribute("data-dsb-on");
 		root.removeAttribute("data-dsb-theme");
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
 	};
 
-	/** 材质 alpha 与 scrim 强度都随「背景透出度」缩放：
-	 *  材质 alpha = 主题阶梯值 × (100-v)/45（v=55 → 原阶梯）；
-	 *  scrim 系数 k = (100-v)/100（v=100 → scrim 消失 = 纯壁纸，v=0 → 全强度）。 */
-	const applyAlphas = (theme, v) => {
-		for (const [key, d] of Object.entries(theme.alphas ?? {})) {
+	/** 材质 alpha 与 scrim 强度随「透出度」缩放（v8 公式）。 */
+	const applyAlphas = (def, v) => {
+		for (const [key, d] of Object.entries(def.alphas ?? DEFAULT_ALPHAS)) {
 			const a = Math.min(0.95, Math.max(0.05, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
 		root.style.setProperty("--dsb-scrim-k", ((100 - Math.min(100, Math.max(0, v))) / 100).toFixed(3));
 	};
 
-	/** 应用一个主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册，同 source 整层替换）。
-	 *  注意：画布变量必须挂在 documentElement 上——骨架 CSS 的消费方是 html
-	 *  （background-image/position 在 html 上），CSS 变量只向下继承，挂 body
-	 *  会让 html 读不到、整条 background 声明失效（v5 真机实测教训）。 */
-	const applyTheme = (id, v) => {
-		const theme = THEMES[id];
-		if (theme === undefined) return;
-		root.style.setProperty("--dsb-bg", `url("${BG_URL}")`);
-		root.style.setProperty("--dsb-bg-pos", theme.bgPos);
-		root.style.setProperty("--dsb-d-rgb", theme.dRgb);
-		root.style.setProperty("--dsb-l-rgb", theme.lRgb);
+	/** 生效横向位置：用户值（0–100）优先，否则主题 art。 */
+	const effectivePosX = (def, userX) => (userX >= 0 ? Math.round(userX) : Math.round(def.fx * 100));
+	const applyPos = (def, userX) => {
+		root.style.setProperty("--dsb-bg-pos", `${effectivePosX(def, userX)}% ${Math.round(def.fy * 100)}%`);
+	};
+
+	/** 应用主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册）。 */
+	const applyTheme = (id, v, posX) => {
+		const def = themeDefOf(id);
+		if (def === undefined) return;
+		root.style.setProperty("--dsb-bg", `url("${def.bgUrl}")`);
+		root.style.setProperty("--dsb-d-rgb", def.dRgb);
+		root.style.setProperty("--dsb-l-rgb", def.lRgb);
 		root.setAttribute("data-dsb-on", "");
 		root.setAttribute("data-dsb-theme", id);
-		applyAlphas(theme, v);
-		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, theme.tokens);
+		applyPos(def, posX);
+		applyAlphas(def, v);
+		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 		current = id;
 	};
 
-	/** 跟随设置表单（写答案折入共享镜像；连接重置/文档更新均触发订阅）。 */
+	/** 跟随设置表单（theme / visibility / bgPosX 任一变化）。 */
 	const sync = () => {
 		const value = readTheme();
 		const v = readVisibility();
-		if (value === "off" || THEMES[value] === undefined) {
+		const posX = readBgPosX();
+		if (value === "off" || themeDefOf(value) === undefined) {
 			if (current !== "off") {
 				removeOverride();
 				clearCanvas();
@@ -181,78 +295,265 @@ function apply(ctx) {
 			return;
 		}
 		if (value !== current) {
-			applyTheme(value, v);
+			applyTheme(value, v, posX);
 			currentVis = v;
+			currentPosX = posX;
 			return;
 		}
 		if (v !== currentVis) {
-			applyAlphas(THEMES[value], v);
+			applyAlphas(themeDefOf(value), v);
 			currentVis = v;
+		}
+		if (posX !== currentPosX) {
+			applyPos(themeDefOf(value), posX);
+			currentPosX = posX;
 		}
 	};
 	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
 	sync();
 
-	/**
-	 * 设置行组件（自包含契约）：宿主不传 props——状态自订阅 configForms、
-	 * 文案走 locale、控件按官方 token 自绘（practices.md：第三方不得加载
-	 * Harness Client 包，样式只依赖 --dsw-alias-* 语义 token）。
-	 */
-	function SkinRow() {
-		const [value, setValue] = react.useState(readTheme);
-		react.useEffect(() => form.subscribe(() => setValue(readTheme())), []);
-		const options = [
-			{ id: "off", label: t("row.theme.off") },
-			...Object.keys(THEMES).map((id) => ({ id, label: THEMES[id].name ?? id })),
-		];
-		return react.createElement(
-			"div",
-			{ className: "dsb_settingsRow" },
-			react.createElement("div", { className: "dsb_settingsRowTitle" }, t("row.title")),
+	/* ---------- 面板组件 ---------- */
+
+	/** 主题卡片：缩略图 + 名称；导入卡带删除角标。 */
+	function ThemeCard({ id, label, hint, active, onPick, onRemove, bgUrl, removeLabel }) {
+		const isOff = id === "off";
+		const children = [
 			react.createElement(
 				"div",
-				{ className: "dsb_settingsRowControl" },
+				{
+					className: "dsb_cardThumb",
+					style: isOff ? undefined : { backgroundImage: `url("${bgUrl}")` },
+				},
+				isOff ? react.createElement("span", { className: "dsb_cardOffGlyph" }, "DSH") : null,
+			),
+			react.createElement("div", { className: "dsb_cardName" }, label),
+			hint ? react.createElement("div", { className: "dsb_cardHint" }, hint) : null,
+		];
+		if (onRemove !== undefined) {
+			children.push(
 				react.createElement(
-					"select",
+					"button",
 					{
-						className: "dsb_themeSelect",
-						value,
-						onChange: (event) => {
-							const id = event.target.value;
-							if (id === "off" || THEMES[id] !== undefined) form.set("theme", id);
+						type: "button",
+						className: "dsb_cardRemove",
+						title: removeLabel,
+						onClick: (event) => {
+							event.stopPropagation();
+							onRemove();
 						},
 					},
-					options.map(({ id, label }) =>
-						react.createElement("option", { key: id, value: id }, label),
-					),
+					"×",
+				),
+			);
+		}
+		return react.createElement(
+			"button",
+			{ type: "button", className: active ? "dsb_card dsb_cardActive" : "dsb_card", onClick: onPick },
+			children,
+		);
+	}
+
+	function SkinPanelPage() {
+		const [value, setValue] = react.useState(readTheme);
+		const [vis, setVis] = react.useState(readVisibility);
+		const [importedList, setImportedList] = react.useState([]);
+		const [importBusy, setImportBusy] = react.useState(false);
+		const [importError, setImportError] = react.useState(null);
+		react.useEffect(
+			() =>
+				form.subscribe(() => {
+					setValue(readTheme());
+					setVis(readVisibility());
+				}),
+			[],
+		);
+		react.useEffect(() => {
+			let alive = true;
+			refreshImported()
+				.catch(() => {})
+				.finally(() => {
+					if (alive) setImportedList([...imported.values()]);
+				});
+			return () => {
+				alive = false;
+			};
+		}, []);
+		const pick = (id) => {
+			if (anyTheme(id)) form.set("theme", id);
+		};
+		const slideVis = (n) => {
+			if (!Number.isFinite(n)) return;
+			const clamped = Math.min(100, Math.max(0, n));
+			setVis(clamped);
+			const def = themeDefOf(value);
+			if (def !== undefined) applyAlphas(def, clamped);
+			form.set("visibility", clamped);
+		};
+		const slidePos = (n) => {
+			if (!Number.isFinite(n)) return;
+			const clamped = Math.min(100, Math.max(0, n));
+			const def = themeDefOf(value);
+			if (def !== undefined) {
+				applyPos(def, clamped);
+				setValue(value); // 触发重渲染（pos 不入组件 state）
+			}
+			form.set("bgPosX", clamped);
+		};
+		const removeImported = (id) => {
+			apiJson("api/dsh-dream-skin/remove", { method: "POST", body: JSON.stringify({ id }) })
+				.then(() => refreshImported())
+				.then(() => setImportedList([...imported.values()]))
+				.then(() => {
+					if (readTheme() === id) form.set("theme", "off");
+				})
+				.catch((error) => setImportError(String(error?.message ?? error)));
+		};
+		/** 文件夹导入：theme.json + 背景图 → POST /import → 刷新 → 自动选中新皮肤。 */
+		const importFolder = async (fileList) => {
+			const files = [...fileList];
+			const jsonFile = files.find((f) => f.name === "theme.json") ?? files.find((f) => f.name.endsWith(".json"));
+			const imageFile = files.find((f) => /\.(jpe?g|png|webp)$/i.test(f.name));
+			if (jsonFile === undefined || imageFile === undefined) {
+				setImportError(t("panel.import.hint"));
+				return;
+			}
+			setImportBusy(true);
+			setImportError(null);
+			try {
+				const manifest = JSON.parse(await jsonFile.text());
+				const imageBuffer = await imageFile.arrayBuffer();
+				const ext = (imageFile.name.split(".").pop() ?? "jpg").toLowerCase();
+				const created = await apiJson("api/dsh-dream-skin/import", {
+					method: "POST",
+					body: JSON.stringify({
+						id: manifest.id,
+						name: manifest.name,
+						appearance: manifest.appearance,
+						fx: manifest.art?.focusX,
+						fy: manifest.art?.focusY,
+						imageExt: ext,
+						imageBase64: bufferToBase64(imageBuffer),
+						colors: {
+							background: manifest.colors?.background ?? manifest.derivedFrom?.averageColor,
+							text: manifest.colors?.text ?? manifest.sourceColors?.text,
+							muted: manifest.colors?.muted ?? manifest.sourceColors?.muted,
+							accent: manifest.colors?.accent ?? manifest.sourceColors?.accent,
+							line: manifest.colors?.line,
+						},
+					}),
+				});
+				await refreshImported();
+				setImportedList([...imported.values()]);
+				form.set("theme", created.id);
+			} catch (error) {
+				setImportError(String(error?.message ?? error));
+			} finally {
+				setImportBusy(false);
+			}
+		};
+		const def = themeDefOf(value);
+		const tunable = def !== undefined;
+		const posNow = tunable ? effectivePosX(def, readBgPosX()) : 50;
+		const builtinCards = [
+			react.createElement(ThemeCard, {
+				key: "off",
+				id: "off",
+				label: t("panel.theme.off"),
+				hint: t("panel.theme.off.hint"),
+				active: value === "off",
+				onPick: () => pick("off"),
+			}),
+			...Object.keys(THEMES).map((id) =>
+				react.createElement(ThemeCard, {
+					key: id,
+					id,
+					label: THEMES[id].name ?? id,
+					hint: null,
+					active: value === id,
+					onPick: () => pick(id),
+					bgUrl: BG_URL,
+				}),
+			),
+		];
+		const importedCards = importedList
+			.filter((m) => THEMES[m.id] === undefined)
+			.map((m) =>
+			react.createElement(ThemeCard, {
+				key: m.id,
+				id: m.id,
+				label: m.name ?? m.id,
+				hint: m.importedFrom ?? null,
+				active: value === m.id,
+				onPick: () => pick(m.id),
+				onRemove: () => removeImported(m.id),
+				removeLabel: t("panel.remove"),
+				bgUrl: importedUrl(m),
+			}),
+		);
+		return react.createElement(
+			"div",
+			{ className: "dsb_panel" },
+			react.createElement("h1", { className: "dsb_panelTitle" }, t("panel.title")),
+			react.createElement("p", { className: "dsb_panelSubtitle" }, t("panel.subtitle")),
+			react.createElement("div", { className: "dsb_sectionTitle" }, t("panel.builtin")),
+			react.createElement("div", { className: "dsb_panelGrid" }, builtinCards),
+			react.createElement(
+				"div",
+				{ className: "dsb_importHead" },
+				react.createElement("div", { className: "dsb_sectionTitle" }, t("panel.imported")),
+				react.createElement(
+					"label",
+					{ className: importBusy ? "dsb_importButton dsb_busy" : "dsb_importButton" },
+					importBusy ? t("panel.import.busy") : t("panel.import"),
+					react.createElement("input", {
+						type: "file",
+						webkitdirectory: "",
+						multiple: true,
+						onChange: (event) => {
+							if (event.target.files?.length > 0) void importFolder(event.target.files);
+							event.target.value = "";
+						},
+					}),
 				),
 			),
+			importError !== null ? react.createElement("div", { className: "dsb_importError" }, `${t("panel.import.fail")}: ${importError}`) : null,
+			importedCards.length > 0 ? react.createElement("div", { className: "dsb_panelGrid" }, importedCards) : react.createElement("div", { className: "dsb_cardHint" }, t("panel.import.hint")),
+			tunable
+				? react.createElement(
+						"div",
+						{ className: "dsb_panelSliders" },
+						react.createElement(
+							"label",
+							{ className: "dsb_panelSlider" },
+							react.createElement("span", { className: "dsb_panelSliderLabel" }, t("panel.visibility")),
+							react.createElement("input", {
+								type: "range",
+								min: 0,
+								max: 100,
+								step: 1,
+								value: vis,
+								onChange: (event) => slideVis(Number(event.target.value)),
+							}),
+						),
+						react.createElement(
+							"label",
+							{ className: "dsb_panelSlider" },
+							react.createElement("span", { className: "dsb_panelSliderLabel" }, t("panel.pos")),
+							react.createElement("input", {
+								type: "range",
+								min: 0,
+								max: 100,
+								step: 1,
+								value: posNow,
+								onChange: (event) => slidePos(Number(event.target.value)),
+							}),
+						),
+					)
+				: null,
 		);
 	}
 
-	// 4. 注册设置行（「通用」分区；注册选项仅 id/order/label——Slots 目录实测，
-	//    label 支持跟随 locale 的 thunk）。独立防抖：异常记录到 data-dsb-error，
-	//    皮肤画布逻辑（步骤 3）不受影响。
-	try {
-		ctx.slots.inject("settings.general.item", () =>
-			ctx.slots.register(
-				{
-					name: "settings.general.item",
-					id: "dream-skin",
-					order: 13,
-					label: () => t("row.title"),
-				},
-				SkinRow,
-			),
-		);
-	} catch (error) {
-		reportError("settings-row", error);
-	}
-
-	// 5. 独立面板（skill-explorer 同款已验证模式）：侧栏图标（sidebar.panellist，
-	//    id 即面板 id）+ 主栏整页（main，keyed by 面板 id）。图标收 {size, active}
-	//    owner props；页面无 props，全部经 apply 闭包（slots 文档：service 留在
-	//    apply closure，只向组件投影数据与 callback）。
+	/** 侧栏图标（{size, active} owner props）。 */
 	function SkinPanelIcon({ size, active }) {
 		const px = typeof size === "number" ? size : 20;
 		return react.createElement(
@@ -277,95 +578,7 @@ function apply(ctx) {
 		);
 	}
 
-	/** 主题卡片：背景缩略图（资产 URL）+ 名称；off 卡用官方材质。 */
-	function ThemeCard({ id, label, hint, active, onPick }) {
-		const isOff = id === "off";
-		return react.createElement(
-			"button",
-			{
-				type: "button",
-				className: active ? "dsb_card dsb_cardActive" : "dsb_card",
-				onClick: onPick,
-			},
-			react.createElement(
-				"div",
-				{
-					className: "dsb_cardThumb",
-					style: isOff ? undefined : { backgroundImage: `url("${BG_URL}")` },
-				},
-				isOff ? react.createElement("span", { className: "dsb_cardOffGlyph" }, "DSH") : null,
-			),
-			react.createElement("div", { className: "dsb_cardName" }, label),
-			hint ? react.createElement("div", { className: "dsb_cardHint" }, hint) : null,
-		);
-	}
-
-	function SkinPanelPage() {
-		const [value, setValue] = react.useState(readTheme);
-		const [vis, setVis] = react.useState(readVisibility);
-		react.useEffect(
-			() =>
-				form.subscribe(() => {
-					setValue(readTheme());
-					setVis(readVisibility());
-				}),
-			[],
-		);
-		const pick = (id) => {
-			if (id === "off" || THEMES[id] !== undefined) form.set("theme", id);
-		};
-		const slideVis = (n) => {
-			if (!Number.isFinite(n)) return;
-			const clamped = Math.min(100, Math.max(0, n));
-			setVis(clamped);
-			if (THEMES[value] !== undefined) applyAlphas(THEMES[value], clamped); // 拖动即时预览
-			form.set("visibility", clamped); // 持久化（快速连续写按手势序序列化）
-		};
-		const tunable = value !== "off" && THEMES[value] !== undefined;
-		return react.createElement(
-			"div",
-			{ className: "dsb_panel" },
-			react.createElement("h1", { className: "dsb_panelTitle" }, t("panel.title")),
-			react.createElement("p", { className: "dsb_panelSubtitle" }, t("panel.subtitle")),
-			react.createElement(
-				"div",
-				{ className: "dsb_panelGrid" },
-				react.createElement(ThemeCard, {
-					id: "off",
-					label: t("panel.theme.off"),
-					hint: t("panel.theme.off.hint"),
-					active: value === "off",
-					onPick: () => pick("off"),
-				}),
-				Object.keys(THEMES).map((id) =>
-					react.createElement(ThemeCard, {
-						key: id,
-						id,
-						label: THEMES[id].name ?? id,
-						hint: null,
-						active: value === id,
-						onPick: () => pick(id),
-					}),
-				),
-			),
-			tunable
-				? react.createElement(
-						"label",
-						{ className: "dsb_panelSlider" },
-						react.createElement("span", { className: "dsb_panelSliderLabel" }, t("panel.visibility")),
-						react.createElement("input", {
-							type: "range",
-							min: 0,
-							max: 100,
-							step: 1,
-							value: vis,
-							onChange: (event) => slideVis(Number(event.target.value)),
-						}),
-					)
-				: null,
-		);
-	}
-
+	// 4. 注册席位（自绘自管契约：宿主不传 props）
 	try {
 		ctx.slots.inject("sidebar.panellist", () =>
 			ctx.slots.register(
@@ -387,11 +600,53 @@ function apply(ctx) {
 				SkinPanelPage,
 			),
 		);
+		ctx.slots.inject("settings.general.item", () =>
+			ctx.slots.register(
+				{
+					name: "settings.general.item",
+					id: "dream-skin",
+					order: 13,
+					label: () => t("row.title"),
+				},
+				SkinRow,
+			),
+		);
 	} catch (error) {
-		reportError("panel", error);
+		reportError("slots", error);
 	}
 
-	// 6. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题；dispose 时清除）
+	/** 设置行（自绘自管）。 */
+	function SkinRow() {
+		const [value, setValue] = react.useState(readTheme);
+		react.useEffect(() => form.subscribe(() => setValue(readTheme())), []);
+		const options = [
+			{ id: "off", label: t("row.theme.off") },
+			...Object.keys(THEMES).map((id) => ({ id, label: THEMES[id].name ?? id })),
+			...[...imported.values()].map((m) => ({ id: m.id, label: m.name ?? m.id })),
+		];
+		return react.createElement(
+			"div",
+			{ className: "dsb_settingsRow" },
+			react.createElement("div", { className: "dsb_settingsRowTitle" }, t("row.title")),
+			react.createElement(
+				"div",
+				{ className: "dsb_settingsRowControl" },
+				react.createElement(
+					"select",
+					{
+						className: "dsb_themeSelect",
+						value,
+						onChange: (event) => {
+							if (anyTheme(event.target.value)) form.set("theme", event.target.value);
+						},
+					},
+					options.map(({ id, label }) => react.createElement("option", { key: id, value: id }, label)),
+				),
+			),
+		);
+	}
+
+	// 5. 调试句柄
 	ctx.effect(() => () => {
 		delete window.__dsb__;
 	}, `${PACKAGE_ID}: debug handle`);
@@ -400,14 +655,17 @@ function apply(ctx) {
 			return current;
 		},
 		themes: Object.keys(THEMES),
+		get imported() {
+			return [...imported.keys()];
+		},
 		setTheme: (id) => {
-			if (id !== "off" && THEMES[id] === undefined) return false;
+			if (!anyTheme(id)) return false;
 			form.set("theme", id);
 			return true;
 		},
 	};
 
-	// 7. 兜底 teardown（dispose/HMR：样式表由步骤 1 移除，这里收覆盖层与画布）
+	// 6. 兜底 teardown
 	ctx.effect(() => () => {
 		removeOverride();
 		clearCanvas();

@@ -149,7 +149,13 @@ const requireStub = (request) => {
 };
 requireStub.asset = (ref) => `#asset:${ref}`;
 
-const context = { window: windowStub, console, Symbol, JSON, Object, document: documentStub };
+const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub };
+/** 同源 fetch stub：list 路由返回空导入表。 */
+const fetchCalls = [];
+function fetchStub(path, init) {
+	fetchCalls.push({ path, init });
+	return Promise.resolve({ ok: true, json: async () => ({ themes: [] }) });
+}
 windowStub.__ModuleLoader__ = { load(row) { loaded.push(row); } };
 vm.createContext(context);
 vm.runInContext(bundle, context, { filename: "lib/client.js" });
@@ -292,16 +298,20 @@ assert.equal(iconTree.type, "svg");
 assert.equal(iconTree.props.width, 20);
 pageComponent = page.Component;
 pageTree = renderTree(pageComponent);
-const cardsOff = [...allNodes(pageTree)].filter((n) => n.type === "button" && String(n.props.className).includes("dsb_card"));
+const grids = [...allNodes(pageTree)].filter((n) => n.props.className === "dsb_panelGrid" && Array.isArray(n.children));
+assert.equal(grids.length, 1, "built-in grid only while no imports loaded");
+const cardsOff = grids[0].children.filter((n) => n.type === "button");
 assert.equal(cardsOff.length, 2, "off card + 1 theme card");
 const activeClasses = cardsOff.map((c) => String(c.props.className).includes("dsb_cardActive"));
 assert.deepEqual(activeClasses, [true, false], "off card is active initially");
 const themeCard = cardsOff[1];
 assert.ok(themeCard.children[0].props.style.backgroundImage.includes("#asset:"), "theme card thumbnail uses asset URL");
+assert.ok([...allNodes(pageTree)].some((n) => n.type === "input" && n.props.type === "file" && "webkitdirectory" in n.props), "folder import input rendered");
 
 // ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
+assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel fetched the imported list");
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
@@ -348,6 +358,16 @@ slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider live-tunes alphas optimistically (0.62×10/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.100", "slider scales scrim strength too (10/100)");
+formWrites.length = 0;
+
+// ---------- 场景 6c：横向位置滑杆 → 默认跟随主题 art，拖动固定并持久化 ----------
+const sliders = [...allNodes(pageTree)].filter((n) => n.type === "input" && n.props.type === "range");
+assert.equal(sliders.length, 2, "visibility + position sliders");
+const posSlider = sliders[1];
+assert.equal(posSlider.props.value, 76, "position defaults to theme art.focusX (bgPosX=-1)");
+posSlider.props.onChange({ target: { value: "30" } });
+assert.deepEqual(formWrites, [{ field: "bgPosX", value: 30 }], "position persists through configForms");
+assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "30% 45%", "position live-updates the canvas var");
 formWrites.length = 0;
 
 // ---------- 场景 7：切回 off → 完整还原 ----------
