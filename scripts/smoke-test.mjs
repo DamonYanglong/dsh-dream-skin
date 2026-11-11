@@ -79,18 +79,34 @@ const documentStub = {
 	head,
 	documentElement: htmlEl,
 	body: bodyEl,
-	createElement() {
-		return {
-			tagName: "STYLE",
+	createElement(tag) {
+		const el = {
+			tagName: tag.toUpperCase(),
 			dataset: {},
+			className: "",
 			textContent: "",
+			title: "",
 			removed: false,
+			listeners: new Map(),
+			addEventListener(type, fn) {
+				this.listeners.set(type, fn);
+			},
 			remove() {
 				this.removed = true;
-				head.children.delete(this);
+				if (this === styleTag) head.children.delete(this);
 			},
 		};
+		if (el.tagName === "STYLE") styleTag = el;
+		return el;
 	},
+};
+let styleTag = null;
+
+const bodyChildren = () => bodyChildrenStore;
+const bodyChildrenStore = new Set();
+bodyEl.appendChild = (el) => {
+	bodyChildrenStore.add(el);
+	return el;
 };
 
 // ---------- run bundle ----------
@@ -183,11 +199,16 @@ function disposeEntry(entry) {
 
 // ---------- 场景 1：settings 未就绪（mirror value undefined）→ off，不抛 ----------
 exports.apply(ctx);
-const styleTags = () => [...head.children].filter((el) => el.tagName === "STYLE");
+const styleTags = () => (styleTag && !styleTag.removed && styleTag.tagName === "STYLE" ? [styleTag] : []);
 assert.equal(styleTags().length, 1, "skeleton style installed");
 assert.equal(styleTags()[0].dataset.pluginCss, "dsh-dream-skin/skeleton");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "off before settings arrive");
 assert.equal(overrideLayer, null);
+// 浮动按钮已挂载，显示 off 态文案
+const pill = [...bodyChildren()].find((el) => el.className === "dsb_pill");
+assert.ok(pill, "theme pill mounted");
+assert.ok(pill.textContent.includes("官方"), "pill shows off state");
+assert.equal(typeof windowStub.__dsb__, "object", "debug handle exposed");
 
 // ---------- 场景 2：设置行注册 + 宿主物化（inject 回调拿到真实 actions 包） ----------
 assert.ok(registration, "settings row registered");
@@ -209,14 +230,18 @@ assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw-static-neutral-bluish-1000)");
 assert.equal(registration.storeHandle.getSnapshot().theme, "gothic-void-crusade", "row store synced");
+assert.ok(pill.textContent.includes("Gothic"), "pill shows theme state");
 // 幂等：同值不重复注册
 for (const fn of settingsListeners) fn();
 assert.ok(overrideLayer && !overrideLayer.disposed);
 
-// ---------- 场景 4：设置行 setTheme → 写 configForms，未知 id 拒绝 ----------
+// ---------- 场景 4：设置行 setTheme / 浮动按钮点击 → 写 configForms，未知 id 拒绝 ----------
 registration.bound.setTheme("off");
 registration.bound.setTheme("nope");
 assert.deepEqual(settingsWrites, [{ field: "theme", value: "off" }], "only valid ids reach the settings write");
+settingsWrites.length = 0;
+pill.listeners.get("click")();
+assert.deepEqual(settingsWrites, [{ field: "theme", value: "off" }], "pill click cycles the active theme back to off");
 
 // ---------- 场景 5：切回 off → 完整还原 ----------
 settingsValue = { theme: "off" };
@@ -226,12 +251,14 @@ assert.equal(bodyEl.style.map.size, 0, "canvas vars cleared");
 assert.equal(overrideLayer, null, "override layer removed");
 assert.equal(registration.storeHandle.getSnapshot().theme, "off");
 
-// ---------- 场景 6：dispose（HMR/停用）→ 样式表与状态全清 ----------
+// ---------- 场景 6：dispose（HMR/停用）→ 样式表/按钮与状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of settingsListeners) fn();
 assert.ok(overrideLayer && !overrideLayer.disposed);
 while (effects.length > 0) disposeEntry(effects[effects.length - 1]);
 assert.equal(styleTags().length, 0, "style tag removed on dispose");
+assert.equal(pill.removed, true, "pill removed on dispose");
+assert.equal(windowStub.__dsb__, undefined, "debug handle removed on dispose");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false);
 assert.equal(bodyEl.style.map.size, 0);
 

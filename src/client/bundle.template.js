@@ -98,11 +98,23 @@ function ThemeRow({ t, setTheme, useStore }) {
 }
 
 /**
- * Client plugin body：挂骨架样式表 + 设置行，跟随 configForms 镜像应用/移除主题。
+ * Client plugin body：挂骨架样式表 + 浮动切换按钮 + 设置行（各自独立防抖：
+ * 任一环节抛错都记录到 html[data-dsb-error] 并继续，不再让诊断盲区炸掉整个条目）。
  * @param ctx Client root context.
  */
 function apply(ctx) {
 	if (typeof document === "undefined") return;
+
+	/** 把错误记录到 DOM（data-dsb-error）并打到控制台；浮动按钮也会显示它。 */
+	const reportError = (stage, error) => {
+		try {
+			const message = `${stage}: ${error instanceof Error ? `${error.message}` : String(error)}`;
+			console.error(`[dsh-dream-skin] ${message}`, error);
+			document.documentElement.setAttribute("data-dsb-error", message);
+		} catch {
+			/* 报错路径自身不抛 */
+		}
+	};
 
 	// 1. 骨架样式表（CSS Modules 等价物：插件持有的全局样式，
 	//    <style data-plugin-css="<pkg>/<file>">，dispose/HMR 时移除）
@@ -168,12 +180,38 @@ function apply(ctx) {
 		current = id;
 	};
 
-	// 2. 跟随设置镜像（volatile theme 字段经 Host settings 投影，
+	// 2. 浮动切换按钮（纯 DOM，零框架契约：诊断时代的主题管理入口，
+	//    点击在 off ↔ 主题间切换，写入走 configForms 官方持久化路径）
+	let pill = null;
+	const pillSync = (value) => {
+		if (pill === null) return;
+		pill.textContent = value === "off" ? "皮肤：官方" : `皮肤：${THEMES[value]?.name ?? value}`;
+		pill.title = "dsh-dream-skin：点击切换皮肤";
+	};
+	ctx.effect(() => {
+		pill = document.createElement("button");
+		pill.type = "button";
+		pill.className = "dsb_pill";
+		pill.addEventListener("click", () => {
+			const next = current === "off" ? Object.keys(THEMES)[0] : "off";
+			if (next !== "off" && THEMES[next] === undefined) return;
+			settings.set("theme", next);
+		});
+		document.body.appendChild(pill);
+		pillSync(current);
+		return () => {
+			pill.remove();
+			pill = null;
+		};
+	}, `${PACKAGE_ID}: theme pill`);
+
+	// 3. 跟随设置镜像（volatile theme 字段经 Host settings 投影，
 	//    镜像未就绪时 value 为 undefined → 视为 off）
 	const settings = ctx.configForms.get(SETTINGS_NS);
 	const sync = () => {
 		const value = settings.getSnapshot().value?.theme ?? "off";
 		rowActions?.sync(value, ++mirrorSeq);
+		pillSync(value);
 		if (value === current) return;
 		if (value === "off") {
 			removeOverride();
@@ -186,34 +224,55 @@ function apply(ctx) {
 	ctx.effect(() => settings.subscribe(sync), `${PACKAGE_ID}: settings mirror`);
 	sync();
 
-	// 3. 设置行（「通用」分区，紧随官方外观/字号行；契约 = ui-theme appearance 行：
-	//    store 传工厂，宿主物化并把 {sync} 动作包经 inject(actions) 回传）
-	ctx.effect(() => ctx.locale.register(LOCALE_NS, LOCALE), `${PACKAGE_ID}: settings row dictionaries`);
-	ctx.slots.inject("settings.general.item", () =>
-		ctx.slots.register(
-			{
-				name: "settings.general.item",
-				id: "dream-skin",
-				order: 13,
-				store: rowStoreFactory,
-				locale: LOCALE_NS,
-				inject: (actions) => {
-					rowActions = actions;
-					sync();
-					return {
-						/** 写入经 Host settings 持久化到 profile patch（官方机制）。 */
-						setTheme: (id) => {
-							if (id !== "off" && THEMES[id] === undefined) return;
-							settings.set("theme", id);
-						},
-					};
-				},
-			},
-			ThemeRow,
-		),
-	);
+	// 4. 调试句柄（devtools 里 window.__dsb__ 可查状态/手切主题/读错误）
+	ctx.effect(() => () => {
+		delete window.__dsb__;
+	}, `${PACKAGE_ID}: debug handle`);
+	window.__dsb__ = {
+		get current() {
+			return current;
+		},
+		themes: Object.keys(THEMES),
+		setTheme: (id) => {
+			if (id !== "off" && THEMES[id] === undefined) return false;
+			settings.set("theme", id);
+			return true;
+		},
+	};
 
-	// 4. 兜底 teardown（dispose/HMR：样式表由 effect 1 移除，这里收覆盖层与画布）
+	// 5. 设置行（「通用」分区，契约 = ui-theme appearance 行 + client/AGENTS.md
+	//    规则 6/7：store 句柄在 apply 内创建、inject 返回纯数据与回调。
+	//    独立防抖：此环节任何异常记录到 html[data-dsb-error]，浮动按钮仍在）
+	try {
+		ctx.effect(() => ctx.locale.register(LOCALE_NS, LOCALE), `${PACKAGE_ID}: settings row dictionaries`);
+		ctx.slots.inject("settings.general.item", () =>
+			ctx.slots.register(
+				{
+					name: "settings.general.item",
+					id: "dream-skin",
+					order: 13,
+					store: rowStoreFactory,
+					locale: LOCALE_NS,
+					inject: (actions) => {
+						rowActions = actions;
+						sync();
+						return {
+							/** 写入经 Host settings 持久化到 profile patch（官方机制）。 */
+							setTheme: (id) => {
+								if (id !== "off" && THEMES[id] === undefined) return;
+								settings.set("theme", id);
+							},
+						};
+					},
+				},
+				ThemeRow,
+			),
+		);
+	} catch (error) {
+		reportError("settings-row", error);
+	}
+
+	// 6. 兜底 teardown（dispose/HMR：样式表由 effect 1 移除，这里收覆盖层与画布）
 	ctx.effect(() => () => {
 		removeOverride();
 		clearCanvas();
