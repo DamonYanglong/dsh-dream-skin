@@ -1,0 +1,7 @@
+# dsh-dream-skin bundle patch — 载入皮肤插件的 Loader 条目。
+# 形态对齐 dsh-work-x（第三方 bundle 先例）：bundle 经 `insert` 加入条目，
+# 用户的 theme 配置走 profile 用户 patch 层的 config override
+# （`- id: dsh-dream-skin` 行，由设置表单/config-editor 写入）。
+- insert:
+    - id: dsh-dream-skin
+      name: dsh-dream-skin

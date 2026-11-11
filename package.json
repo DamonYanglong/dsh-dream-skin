@@ -6,9 +6,13 @@
   "type": "module",
   "private": true,
   "sideEffects": false,
-  "_comment_dsh_client": "M1 实测定稿：inject 无需列出（bundle 无外部模块请求，服务依赖由 cordis inject 声明）；immediately 不需要（皮肤可惰性加载）。exports 的 ./assets/* 是资产管线硬性要求，./client 必须是 factory 形态 bundle（scripts/build.mjs 产出）。",
+  "_comment_dsh_client": "M1 实测定稿：bundle 形态对齐 dsh-work-x（第三方 bundle 先例）——dsh.bundle.patch 提供 Loader 条目，dsh.client 声明浏览器半侧。inject 为空数组（bundle 无外部模块请求，服务依赖由 cordis inject 声明）；exports 的 ./assets/* 是资产管线硬性要求，./client 由 scripts/build.mjs 产出 factory 形态 bundle。",
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
+      "inject": [],
       "platform": "web"
     }
   },
@@ -20,6 +24,7 @@
   },
   "files": [
     "lib",
+    "cordis.patch.yml",
     "README.md",
     "NOTICE.md"
   ],
