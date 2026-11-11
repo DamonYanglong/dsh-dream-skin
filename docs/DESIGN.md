@@ -5,9 +5,9 @@
 > （["Everything is a Plugin"](https://github.com/deepseek-ai/deepseek-harness)），
 > 用插件资产管线发背景图、用主题 token 覆盖层换语义色、用插件样式表挂 scrim。
 
-- 版本：v0.1（设计冻结基线，M0）
-- 状态：设计阶段，未开始实现
-- 上游调研结论见 [capabilities.md](capabilities.md)，token 映射目标见 [token-map.md](token-map.md)
+- 版本：v0.2（M1 实现基线，机制实测校准）
+- 状态：M1 实现完成，真机验证中
+- 上游调研结论见 [capabilities.md](capabilities.md)（含 M1 校准），token 映射目标见 [token-map.md](token-map.md)
 
 ---
 
@@ -270,6 +270,30 @@ MutationObserver 动态补底（zds PANEL_GUARD v6 的移植）：大面积、�
 | **M4** 分发 | npm 包 + 安装文档 +（可选）market 索引条目 | 全新环境按文档安装成功 |
 
 M1 是**证伪点**：若产物形态复刻不被接受或 token 覆盖层不达视觉预期，回此设计文档修订。
+
+### M1 执行记录（2026-11-11）
+
+**产物形态复刻成功（R1 解除）**：手工 bundle（`scripts/build.mjs` 产出
+`window.__ModuleLoader__.load({id, factory})` 注册形态 + `require.asset()`
+资产引用）无需借 dsh 仓库构建配置。零外部模块请求的插件连
+`dsh.client.inject` 都不用声明——服务依赖全部走 cordis `inject`。
+
+**API 校准（R2 解除）**：`ctx.theme.overrideTokens(source, tokens)`（非
+`override`）；每 token `{light, dark}`，呈现器按活动 colorScheme 自动取值
+→ 明暗切换零 JS。明暗 DOM 判据 `body[data-ds-dark-theme]`（非 `html.dark`）。
+
+**配置通道校准**：ns = profile 条目 id；客户端 `ctx.configForms.get(ns)`
+读 volatile 字段（ui-chat 先例），写入经 Host settings 持久化到
+profile patch。自动表单暂无 UI 渲染方，M2 需自注册设置行 slot。
+
+**热重载边界（新发现）**：宿主不 watch patch 文件；reconcile 仅由
+config-editor 保存 / plugin-manager 操作触发。手工改 patch 后需 GUI 触发
+一次（或重启宿主）。资产路由 404/200 可作激活探针。
+
+**简化决策**：scrim 端点组不做 JS 切换——`:has(body[data-ds-dark-theme])`
+纯 CSS 分组 + `html[data-dsb-on]` 总门控；对话页判据
+`:has([data-conversation-scroll])`；浅壳 token 一律官方原值表达式
+（gothic 只出暗套，天然满足 §5.2）。
 
 ---
 

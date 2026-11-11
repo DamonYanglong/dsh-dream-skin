@@ -1,0 +1,71 @@
+/*
+ * dsh-dream-skin · skeleton.css（M1）
+ *
+ * 层叠模型对齐 Codex Dream Skin / zcode-dream-skin 的方向渐变 scrim：
+ * 均匀蒙层会把整图统一压暗（蒙层感），渐变把重处放在文字区、
+ * 让焦点图区接近裸露。
+ *   首页  hero-scrim  水平：.90 → .76(50%) → .18(84%) → transparent（图区裸露）
+ *   对话  task-shade  水平：.56 → .36(48%) → .12（文字列轻罩）
+ *         task-fade   垂直：顶部 .10（图清晰）→ 底部 1.0（输入区实底）
+ *
+ * 与 zds 的差异（DSH 侧适配）：
+ *   - 明暗判据：zds 用 html.dark；DSH 在 body[data-ds-dark-theme] 上
+ *     （ui-theme boot script 设置），这里用 :has(body[data-ds-dark-theme])。
+ *   - 首页/对话双态：zds 用 :has(.history-message)；DSH 的稳定判据是
+ *     ui-chat 滚动容器的 [data-conversation-scroll]（M1 实测校准，集中此一处，
+ *     M2 迁入 docs/selectors.md）。
+ *   - 所有字面量参数化为 --dsb-* 变量（由 applyTheme 写到 body 内联），
+ *     骨架样式表只有一份，切主题不增删样式表。
+ *   - 整组规则挂 html[data-dsb-on] 门控：`off` = 移除属性 = 完整还原。
+ */
+
+/* ---- 画布三层（渐变1, 渐变2, 艺术图）---- */
+html[data-dsb-on] {
+  background-size: auto, auto, cover !important;
+  background-position: center, center, var(--dsb-bg-pos) !important;
+  background-repeat: no-repeat !important;
+}
+
+/* ---- scrim 端点（暗壳）：底色 = colors.background，alpha 阶沿上游 dark 组 ---- */
+html[data-dsb-on]:has(body[data-ds-dark-theme]) {
+  --dsb-hero-1: rgb(var(--dsb-d-rgb) / 0.9);
+  --dsb-hero-2: rgb(var(--dsb-d-rgb) / 0.76);
+  --dsb-hero-3: rgb(var(--dsb-d-rgb) / 0.18);
+  --dsb-fade-1: rgb(var(--dsb-d-rgb) / 0.1);
+  --dsb-fade-2: rgb(var(--dsb-d-rgb) / 0.18);
+  --dsb-fade-3: rgb(var(--dsb-d-rgb) / 0.76);
+  --dsb-fade-4: rgb(var(--dsb-d-rgb) / 1);
+  --dsb-shade-1: rgb(var(--dsb-d-rgb) / 0.56);
+  --dsb-shade-2: rgb(var(--dsb-d-rgb) / 0.36);
+  --dsb-shade-3: rgb(var(--dsb-d-rgb) / 0.12);
+}
+
+/* ---- scrim 端点（浅壳）：底色 = 主题浅组 scrim 色（zds 浅组 panel 色） ---- */
+html[data-dsb-on]:not(:has(body[data-ds-dark-theme])) {
+  --dsb-hero-1: rgb(var(--dsb-l-rgb) / 0.96);
+  --dsb-hero-2: rgb(var(--dsb-l-rgb) / 0.82);
+  --dsb-hero-3: rgb(var(--dsb-l-rgb) / 0.2);
+  --dsb-fade-1: rgb(var(--dsb-l-rgb) / 0.08);
+  --dsb-fade-2: rgb(var(--dsb-l-rgb) / 0.22);
+  --dsb-fade-3: rgb(var(--dsb-l-rgb) / 0.78);
+  --dsb-fade-4: rgb(var(--dsb-l-rgb) / 1);
+  --dsb-shade-1: rgb(var(--dsb-l-rgb) / 0.68);
+  --dsb-shade-2: rgb(var(--dsb-l-rgb) / 0.4);
+  --dsb-shade-3: rgb(var(--dsb-l-rgb) / 0.12);
+}
+
+/* ---- 首页：hero scrim，左重右透 ---- */
+html[data-dsb-on]:not(:has([data-conversation-scroll])) {
+  background-image:
+    linear-gradient(90deg, var(--dsb-hero-1) 0%, var(--dsb-hero-2) 50%, var(--dsb-hero-3) 84%, transparent 100%),
+    linear-gradient(transparent, transparent),
+    var(--dsb-bg) !important;
+}
+
+/* ---- 对话页：task-fade（纵向收底）+ task-shade（文字列轻罩）---- */
+html[data-dsb-on]:has([data-conversation-scroll]) {
+  background-image:
+    linear-gradient(180deg, var(--dsb-fade-1) 0%, var(--dsb-fade-2) 32%, var(--dsb-fade-3) 68%, var(--dsb-fade-4) 100%),
+    linear-gradient(90deg, var(--dsb-shade-1) 0%, var(--dsb-shade-2) 48%, var(--dsb-shade-3) 100%),
+    var(--dsb-bg) !important;
+}

@@ -1,0 +1,70 @@
+{
+  "$comment": "gothic-void-crusade 的 DSH 覆盖层（DESIGN §5 M1 映射）。dark = 主题推导值；light = 官方原值表达式（gothic 只出暗套，浅壳零改动——DESIGN §5.2）。scrimLightRgb = zds 浅组 scrim 底色。",
+  "scrimLightRgb": "248 243 230",
+  "tokens": {
+    "--dsw-alias-bg-base": {
+      "light": "var(--dsw-static-neutral-bluish-00)",
+      "dark": "color-mix(in srgb, #0d0d0e 62%, transparent)"
+    },
+    "--dsw-alias-bg-layer-1": {
+      "light": "var(--dsw-static-neutral-bluish-00)",
+      "dark": "color-mix(in srgb, #0d0d0e 62%, transparent)"
+    },
+    "--dsw-alias-bg-layer-2": {
+      "light": "var(--dsw-static-neutral-bluish-00)",
+      "dark": "color-mix(in srgb, #0d0d0e 72%, transparent)"
+    },
+    "--dsw-alias-bg-layer-3": {
+      "light": "var(--dsw-static-neutral-bluish-00)",
+      "dark": "color-mix(in srgb, #0d0d0e 82%, transparent)"
+    },
+    "--dsw-alias-label-primary": {
+      "light": "var(--dsw-static-neutral-bluish-1000)",
+      "dark": "#f3ead7"
+    },
+    "--dsw-alias-label-secondary": {
+      "light": "var(--dsw-static-neutral-bluish-700)",
+      "dark": "#b5a386"
+    },
+    "--dsw-alias-label-tertiary": {
+      "light": "var(--dsw-static-neutral-bluish-600)",
+      "dark": "#8f8168"
+    },
+    "--dsw-alias-border-l1": {
+      "light": "#0000000a",
+      "dark": "rgba(200, 165, 90, 0.1)"
+    },
+    "--dsw-alias-border-l2": {
+      "light": "#0000001a",
+      "dark": "rgba(200, 165, 90, 0.16)"
+    },
+    "--dsw-alias-state-business-primary": {
+      "light": "var(--dsw-static-deepseek-500)",
+      "dark": "#c8a55a"
+    },
+    "--dsw-alias-link": {
+      "light": "var(--dsw-static-deepseek-500)",
+      "dark": "#d9b96e"
+    },
+    "--dsw-alias-interactive-bg-hover": {
+      "light": "#2631480f",
+      "dark": "rgba(200, 165, 90, 0.1)"
+    },
+    "--dsw-alias-scrollbar-bg-l1": {
+      "light": "var(--dsw-static-neutral-200)",
+      "dark": "rgba(200, 165, 90, 0.28)"
+    },
+    "--dsw-alias-scrollbar-hover-l1": {
+      "light": "var(--dsw-static-neutral-300)",
+      "dark": "rgba(200, 165, 90, 0.45)"
+    },
+    "--dsw-alias-bg-document-selection": {
+      "light": "color-mix(in srgb, #c8a55a 40%, transparent)",
+      "dark": "color-mix(in srgb, #c8a55a 40%, transparent)"
+    },
+    "--dsw-specific-sidebar-fill": {
+      "light": "var(--dsw-static-neutral-bluish-50)",
+      "dark": "rgba(23, 21, 19, 0.66)"
+    }
+  }
+}

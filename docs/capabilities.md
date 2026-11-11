@@ -1,8 +1,10 @@
-# DSH 插件能力调研笔记（M0 基线）
+# DSH 插件能力调研笔记（M0 基线 → M1 实测校准）
 
 > 结论来源：开源仓库文档（github.com/deepseek-ai/deepseek-harness）+ 本机
 > `DeepSeek Harness.app` 的 `app.asar` 内插件包源码与 README（版本 0.2.2-rc.1）。
 > 本文件是 DESIGN.md 决策的证据链，标注了每条结论的出处。
+> **M1 校准（2026-11-11）**：下述 API 均已在真机产物上确认，修正处以
+> 「M1 校准」标注；未标注的为 M0 推断且未推翻。
 
 ## 1. 插件体系总览
 
@@ -34,25 +36,49 @@
 - 规范层面（web-styling.zh.md）：功能组件不得定义全局主题/主题选择器——皮肤是刻意的例外，
   见 DESIGN §11 R4。
 
-### 2.3 theme runtime 与 override layer
+### 2.3 theme runtime 与 override layer（M1 已实测校准）
 
 - `ctx.theme`（ui-theme 提供，ui-layout 呈现器消费）：`register({id, colorScheme, tokens, icons})`
   注册整主题；第三方 id 不进内置设置 schema（light/dark/system）。
-- **override layer**（client.js 源码验证）："在活动主题之上叠一层 token 覆盖——基主题不动，
-  层按 seq 序组合、逐 token 后者胜，移除该层恢复其覆盖的内容"；每 token 为
-  `{light, dark}` 双值 map，按活动 colorScheme 取值；re-register 同 source 即整层替换。
+- **override layer**（client.js 源码验证，**M1 校准：方法名是
+  `overrideTokens(source, tokens)`**，DESIGN v0.1 写的 `override` 不存在）：
+  在活动主题之上叠一层 token 覆盖——基主题不动，层按 seq 序组合、逐 token
+  后者胜，移除该层恢复其覆盖的内容；每 token 为 `{light, dark}` 双值 map，
+  按**活动 colorScheme 自动取值**（明暗切换零 JS）；re-register 同 source
+  即整层替换；裸字符串值抛教学型 TypeError。返回 disposer。
   → DESIGN 决策 D1 的依据：皮肤用 override layer，不动内置偏好。
 - 呈现器把别名 token 写为 body 内联变量（ui-layout README「主题呈现」节）→ 覆盖层值会
-  正常落到 DOM。
+  正常落到 DOM。**light 值填官方原值表达式（如 `var(--dsw-static-neutral-bluish-1000)`）
+  即等效「浅壳不覆盖」——M1 采用**。
 - dispose 语义：register 的主题若背书当前 preference 会重置为默认——又一个不用 register 的理由。
+- **M1 校准**：明暗判据是 `body[data-ds-dark-theme]`（ui-theme boot script 设置），
+  不是 `html.dark`；对话页稳定判据 `html:has([data-conversation-scroll])`（ui-chat
+  滚动容器 data 属性，M2 迁入 selectors.md）。
 
-### 2.4 设置面
+### 2.4 设置面（M1 已实测校准）
 
 - volatile Config 字段自动生成设置表单行（dsh-settings README）：皮肤只需声明
   `theme: Schema.string().default('off')` 类字段 + `.volatile()`，表单/持久化/revision 冲突
   全部由官方机制承担。
+- **M1 校准**：dsh-settings `describe()` 以 **profile 条目 id 为命名空间**（ns =
+  entry.options.id）；客户端读取模式是 `ctx.configForms.get(ns)`（ui-chat 先例）：
+  `.getSnapshot().value.<field>` / `.subscribe(fn)` / `.set(field, value)`，value 在
+  镜像就绪前为 undefined。写入经 Host settings 持久化到 profile patch。
+- **M1 校准**：README 称 autoGenerate「目前没有已发布的客户端这样做」属实——自动
+  表单暂无 UI 渲染方，M2 的「设置行切换」需按 ui-theme 模式注册
+  `settings.general.item` slot 自渲染。
 - 设置页是 `main` keyed slot 的全局面板 → guard 的"设置页剥皮"可监听面板切换实现，无需
   ZCode 时代的文本探测（apply.mjs `settingsOpen()`）。
+
+### 2.5 宿主热重载边界（M1 新增，重要）
+
+- **宿主不 watch profile patch 文件**：`reconcileProfilePatches` 只被
+  config-editor `edit()`（任意设置保存）与 plugin-manager 操作（插件启停/安装）调用。
+  手工编辑 `cordis.patch.yml` 后必须在 GUI 里触发一次上述操作（或重启宿主）才生效。
+- 新增 Loader 条目激活链：patch 重读 → Loader 挂 node 半侧（校验 Config）→
+  client-modules 对账读 manifest + bundle 元数据 → 图发布 → 页面经 SSE/HMR 跟随。
+- 资产路由是激活探针：`/plugins/<pkg>/assets/…` 对未激活/解析失败一律 404，
+  活动条目 200（无需认证）。
 
 ## 3. 结构选择器现状（asar 验证）
 

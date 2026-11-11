@@ -3,5 +3,7 @@ lib/
 dist/
 *.log
 .DS_Store
-# 主题源里的背景图在 M2 移植时入库（可再分发素材），导入的用户主题不入库
+.pi/
+# 导入的用户主题背景不入库；可再分发素材白名单逐主题放开（NOTICE.md 核对后）
 themes/*/background.*
+!themes/gothic-void-crusade/background.jpg
