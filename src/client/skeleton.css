@@ -17,67 +17,81 @@
  *   - 所有字面量参数化为 --dsb-* 变量（由 applyTheme 写到 html 内联），
  *     骨架样式表只有一份，切主题不增删样式表。
  *   - 整组规则挂 html[data-dsb-on] 门控：`off` = 移除属性 = 完整还原。
- *   - 材质半透明化（bg-layer-*/bg-base）不走全局 overrideTokens，由构建期
+ *   - 材质半透明化（bg-layer 系列/bg-base）不走全局 overrideTokens，由构建期
  *     从 dsw.json 生成的「#root 作用域规则」追加在本表末尾：设置面板/菜单
  *     portal 在 #root 之外，天然保持官方不透明材质（zcode 的设置页保留原始）。
  */
 
-/* ---- 画布三层（渐变1, 渐变2, 艺术图）----
- * 消费方是 html：--dsb-* 变量由 applyTheme 挂在 documentElement 上。
-html[data-dsb-on] {
-  background-size: auto, auto, cover !important;
-  background-position: center, center, center !important;
-  background-repeat: no-repeat !important;
+/* ---- 画布（v19 元素化架构）----
+ * .dsb_canvas  固定定位 <img>（object-fit: contain 原生自适应居中，永不裁切）
+ * .dsb_scrim   其上的文字对比纱（明暗两套渐变，随壳自动切换）
+ * 边带色 = html background-color（applyTheme 内联，暗壳暗带/浅壳浅带）
+ * 三者均挂 html[data-dsb-on] 门控：off = 完整还原。 */
+.dsb_canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  display: none;
+}
+html[data-dsb-on] .dsb_canvas {
+  display: block;
+}
+.dsb_scrim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+}
+html[data-dsb-on] .dsb_scrim {
+  display: block;
+  background-repeat: no-repeat;
+  background-size: auto, auto;
+  background-position: center, center;
 }
 
-/* html 画布之下不允许 body/#root 再铺实底（否则盖住背景图；无皮肤时不生效）。 */
-html[data-dsb-on] body,
-html[data-dsb-on] #root {
-  background-color: transparent !important;
-}
-
-/* ---- scrim 端点（暗壳）：底色 = colors.background，alpha 阶沿上游 dark 组 ---- */
+/* scrim 端点（暗壳）：底色 = colors.background 的主题暗调 */
 html[data-dsb-on]:has(body[data-ds-dark-theme]) {
-  --dsb-hero-1: rgb(var(--dsb-d-rgb) / calc(0.9 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-1: rgb(var(--dsb-d-rgb) / calc(0.90 * var(--dsb-scrim-k, 0.45)));
   --dsb-hero-2: rgb(var(--dsb-d-rgb) / calc(0.76 * var(--dsb-scrim-k, 0.45)));
   --dsb-hero-3: rgb(var(--dsb-d-rgb) / calc(0.18 * var(--dsb-scrim-k, 0.45)));
-  --dsb-fade-1: rgb(var(--dsb-d-rgb) / calc(0.1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-1: rgb(var(--dsb-d-rgb) / calc(0.10 * var(--dsb-scrim-k, 0.45)));
   --dsb-fade-2: rgb(var(--dsb-d-rgb) / calc(0.18 * var(--dsb-scrim-k, 0.45)));
   --dsb-fade-3: rgb(var(--dsb-d-rgb) / calc(0.76 * var(--dsb-scrim-k, 0.45)));
-  --dsb-fade-4: rgb(var(--dsb-d-rgb) / calc(1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-4: rgb(var(--dsb-d-rgb) / calc(1.00 * var(--dsb-scrim-k, 0.45)));
   --dsb-shade-1: rgb(var(--dsb-d-rgb) / calc(0.56 * var(--dsb-scrim-k, 0.45)));
   --dsb-shade-2: rgb(var(--dsb-d-rgb) / calc(0.36 * var(--dsb-scrim-k, 0.45)));
   --dsb-shade-3: rgb(var(--dsb-d-rgb) / calc(0.12 * var(--dsb-scrim-k, 0.45)));
 }
 
-/* ---- scrim 端点（浅壳）：底色 = 主题浅组 scrim 色（zds 浅组 panel 色） ---- */
+/* scrim 端点（浅壳）：底色 = 主题浅调 */
 html[data-dsb-on]:not(:has(body[data-ds-dark-theme])) {
   --dsb-hero-1: rgb(var(--dsb-l-rgb) / calc(0.96 * var(--dsb-scrim-k, 0.45)));
   --dsb-hero-2: rgb(var(--dsb-l-rgb) / calc(0.82 * var(--dsb-scrim-k, 0.45)));
-  --dsb-hero-3: rgb(var(--dsb-l-rgb) / calc(0.2 * var(--dsb-scrim-k, 0.45)));
+  --dsb-hero-3: rgb(var(--dsb-l-rgb) / calc(0.20 * var(--dsb-scrim-k, 0.45)));
   --dsb-fade-1: rgb(var(--dsb-l-rgb) / calc(0.08 * var(--dsb-scrim-k, 0.45)));
   --dsb-fade-2: rgb(var(--dsb-l-rgb) / calc(0.22 * var(--dsb-scrim-k, 0.45)));
   --dsb-fade-3: rgb(var(--dsb-l-rgb) / calc(0.78 * var(--dsb-scrim-k, 0.45)));
-  --dsb-fade-4: rgb(var(--dsb-l-rgb) / calc(1 * var(--dsb-scrim-k, 0.45)));
+  --dsb-fade-4: rgb(var(--dsb-l-rgb) / calc(1.00 * var(--dsb-scrim-k, 0.45)));
   --dsb-shade-1: rgb(var(--dsb-l-rgb) / calc(0.68 * var(--dsb-scrim-k, 0.45)));
-  --dsb-shade-2: rgb(var(--dsb-l-rgb) / calc(0.4 * var(--dsb-scrim-k, 0.45)));
+  --dsb-shade-2: rgb(var(--dsb-l-rgb) / calc(0.40 * var(--dsb-scrim-k, 0.45)));
   --dsb-shade-3: rgb(var(--dsb-l-rgb) / calc(0.12 * var(--dsb-scrim-k, 0.45)));
 }
 
-/* ---- 首页：hero scrim，左重右透 ---- */
-html[data-dsb-on]:not(:has([data-conversation-scroll])) {
-  background-image:
-    linear-gradient(90deg, var(--dsb-hero-1) 0%, var(--dsb-hero-2) 50%, var(--dsb-hero-3) 84%, transparent 100%),
-    linear-gradient(transparent, transparent),
-    var(--dsb-bg) !important;
+/* 首页：hero scrim，左重右透 */
+html[data-dsb-on] .dsb_scrim:not(:has([data-conversation-scroll])) {
+  background-image: linear-gradient(90deg, var(--dsb-hero-1) 0%, var(--dsb-hero-2) 50%, var(--dsb-hero-3) 84%, transparent 100%);
 }
 
-/* ---- 对话页：task-fade（纵向收底）+ task-shade（文字列轻罩）---- */
-html[data-dsb-on]:has([data-conversation-scroll]) {
+/* 对话页：task-fade（纵向收底）+ task-shade（横向文字列轻罩）。
+ * 注意 :has 判据挂在 html（conversation 容器不是 scrim 的后代）*/
+html[data-dsb-on]:has([data-conversation-scroll]) .dsb_scrim {
   background-image:
     linear-gradient(180deg, var(--dsb-fade-1) 0%, var(--dsb-fade-2) 32%, var(--dsb-fade-3) 68%, var(--dsb-fade-4) 100%),
-    linear-gradient(90deg, var(--dsb-shade-1) 0%, var(--dsb-shade-2) 48%, var(--dsb-shade-3) 100%),
-    var(--dsb-bg) !important;
+    linear-gradient(90deg, var(--dsb-shade-1) 0%, var(--dsb-shade-2) 48%, var(--dsb-shade-3) 100%);
 }
 
 /* ---- 设置行（不挂 data-dsb-on 门控：off 态也要正常渲染；色值全走语义 token，

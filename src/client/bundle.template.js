@@ -35,7 +35,7 @@ const THEMES = __THEMES_PLACEHOLDER__;
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-bg-size", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
+const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
 
 /** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
@@ -363,8 +363,11 @@ function apply(ctx) {
 		root.removeAttribute("data-dsb-on");
 		root.removeAttribute("data-dsb-theme");
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
-		root.style.removeProperty("background-size");
-		root.style.removeProperty("background-position");
+		root.style.removeProperty("background-color");
+		canvasEls.img?.remove();
+		canvasEls.scrim?.remove();
+		canvasEls.img = undefined;
+		canvasEls.scrim = undefined;
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
@@ -382,38 +385,36 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-scrim-k", k.toFixed(3));
 	};
 
-	/** 背景定位（v14）：按窗口尺寸 + 图片自然宽高逐像素计算，把主题焦点
-	 *  （def.fx/fy，画面主体）锚定到视口中央，并监听 resize 重算——百分比
-	 *  定位在宽高比变化时守不住主体（窄窗口会把主体挤出画面）。轻微放大
-	 *  （ZOOM 1.2×）留出平移余量，clamp 保证画布无空隙。 */
-	const ZOOM = 1.2;
-	const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-	const layoutImg = new Image();
-	let layoutPending = null;
-	const layoutCanvas = (def) => {
-		layoutPending = def;
-		if (typeof window === "undefined" || typeof Image === "undefined") return;
-		if (layoutImg.src !== def.bgUrl) {
-			layoutImg.onload = () => layoutCanvas(layoutPending);
-			layoutImg.src = def.bgUrl;
-			if (!layoutImg.complete) return;
-		}
-		if (!layoutImg.naturalWidth) return;
-		const W = window.innerWidth, H = window.innerHeight;
-		const scale = Math.max(W / layoutImg.naturalWidth, H / layoutImg.naturalHeight) * ZOOM;
-		const Ws = layoutImg.naturalWidth * scale, Hs = layoutImg.naturalHeight * scale;
-		const ox = clamp(W / 2 - Ws * def.fx, W - Ws, 0);
-		const oy = clamp(H / 2 - Hs * def.fy, H - Hs, 0);
-		// 直接写内联样式（var() 代入逗号列表在 Edge 计算期被判无效——v14 实测），
-		// important 压过官方任何 html 背景规则
-		root.style.setProperty("background-size", `auto, auto, ${Ws.toFixed(0)}px ${Hs.toFixed(0)}px`, "important");
-		root.style.setProperty("background-position", `center, center, ${ox.toFixed(0)}px ${oy.toFixed(0)}px`, "important");
+	/** 画布元素（v19 架构）：固定定位 <img>（object-fit: contain 原生自适应
+	 *  居中、永不裁切）+ scrim 覆盖层（文字对比纱）+ html 底色（边带）。
+	 *  此前用 html 多层 background 承载，Edge 对逗号列表 var() 的静默失效
+	 *  导致图片层不绘制（v14–v18 反复翻车），img 元素则保证绘制。 */
+	const canvasEls = {};
+	const ensureCanvasEls = () => {
+		if (canvasEls.img !== undefined && canvasEls.img.isConnected) return canvasEls;
+		const img = document.createElement("img");
+		img.id = "dsb-canvas";
+		img.className = "dsb_canvas";
+		img.alt = "";
+		const scrim = document.createElement("div");
+		scrim.id = "dsb-scrim";
+		scrim.className = "dsb_scrim";
+		document.body.appendChild(scrim);
+		document.body.appendChild(img);
+		canvasEls.img = img;
+		canvasEls.scrim = scrim;
+		return canvasEls;
+	};
+	/** 边带色画在画布元素自身背景上（object-fit contain 的留白处显示）。
+	 *  不能挂在 html——不透明的 html 背景会盖住负 z-index 的画布/scrim
+	 *  元素（v19 实测：整页只剩边带色）。 */
+	const setBandColor = (def) => {
+		const els = ensureCanvasEls();
+		const dark = document.body?.hasAttribute("data-ds-dark-theme");
+		els.img.style.setProperty("background-color", dark ? `rgb(${def.dRgb})` : `rgb(${def.lRgb})`, "important");
 	};
 
-	/** 切换防闪（v16）：旧实现立刻换 --dsb-bg URL → 旧图瞬间消失、新图
-	 *  未解码 → 整页闪白再跳位置。现改为：先解码新图（预热缓存，onerror
-	 *  也放行避免卡死），再一次性原子提交全部画布状态；快速连续切换以
-	 *  序号防 superseded 回写。 */
+	/** 切换防闪（v16）：新图解码完成后一次性原子提交（序号防回写）。 */
 	let applySeq = 0;
 	const artCache = new Map();
 	const preloadArt = (url) => {
@@ -434,12 +435,13 @@ function apply(ctx) {
 		const seq = ++applySeq;
 		preloadArt(def.bgUrl).then(() => {
 			if (seq !== applySeq || readTheme() !== id) return;
-			root.style.setProperty("--dsb-bg", `url("${def.bgUrl}")`);
+			const els = ensureCanvasEls();
+			if (els.img.getAttribute("src") !== def.bgUrl) els.img.setAttribute("src", def.bgUrl);
 			root.style.setProperty("--dsb-d-rgb", def.dRgb);
 			root.style.setProperty("--dsb-l-rgb", def.lRgb);
 			root.setAttribute("data-dsb-on", "");
 			root.setAttribute("data-dsb-theme", id);
-			layoutCanvas(def);
+			setBandColor(def);
 			applyAlphas(def, v);
 			if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 			current = id;
@@ -804,14 +806,16 @@ function apply(ctx) {
 		},
 	};
 
-	// 5b. 窗口自适应：resize 重算焦点锚定
+	// 5b. 明暗翻转 → 边带色重算（object-fit 布局由浏览器原生自适应）
 	ctx.effect(() => {
 		const relayout = () => {
-			if (layoutPending) layoutCanvas(layoutPending);
+			const def = themeDefOf(current);
+			if (def !== undefined) setBandColor(def);
 		};
-		window.addEventListener("resize", relayout);
-		return () => window.removeEventListener("resize", relayout);
-	}, `${PACKAGE_ID}: canvas relayout`);
+		const mo = new MutationObserver(relayout);
+		mo.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
+		return () => mo.disconnect();
+	}, `${PACKAGE_ID}: band color sync`);
 
 	// 6. 兜底 teardown
 	ctx.effect(() => () => {

@@ -94,6 +94,15 @@ const reactStub = {
 // require 白名单 = 平台静态表内第三方唯一可依赖项（官方 decoration 模板同款）
 const externals = { react: reactStub };
 
+/** MutationObserver stub：记录观察目标，供 dispose 断言。 */
+class MutationObserverStub {
+	constructor(fn) { this.fn = fn; }
+	observe() { MutationObserverStub.instances.push(this); }
+	disconnect() { this.disconnected = true; }
+}
+MutationObserverStub.instances = [];
+const MutationObserver = MutationObserverStub;
+
 // ---------- stub DOM ----------
 const head = { children: new Set(), appendChild(el) { this.children.add(el); return el; } };
 const htmlEl = {
@@ -107,10 +116,14 @@ const htmlEl = {
 	setAttribute(k, v) { this.attrs.set(k, v); },
 	removeAttribute(k) { this.attrs.delete(k); },
 };
+const bodyChildrenStore = new Set();
 const bodyEl = {
+	attrs: new Map([["data-ds-dark-theme", ""]]),
+	hasAttribute(k) { return this.attrs.has(k); },
+	appendChild(el) { bodyChildrenStore.add(el); return el; },
 	style: {
 		map: new Map(),
-		setProperty(k, v) { this.map.set(k, v); },
+		setProperty(k, v, prio) { this.map.set(k, v); },
 		removeProperty(k) { this.map.delete(k); },
 		getPropertyValue(k) { return this.map.get(k) ?? ""; },
 	},
@@ -128,11 +141,23 @@ const documentStub = {
 			textContent: "",
 			title: "",
 			removed: false,
+			isConnected: true,
+			style: {
+				map: new Map(),
+				setProperty(k, v, prio) { this.map.set(k, v); },
+				removeProperty(k) { this.map.delete(k); },
+				getPropertyValue(k) { return this.map.get(k) ?? ""; },
+			},
+			attrs: new Map(),
+			getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; },
+			setAttribute(k, v) { this.attrs.set(k, String(v)); },
 			listeners: new Map(),
 			addEventListener(type, fn) { this.listeners.set(type, fn); },
 			remove() {
 				this.removed = true;
+				this.isConnected = false;
 				if (this === styleTag) head.children.delete(this);
+				bodyChildrenStore.delete(this);
 			},
 		};
 		if (el.tagName === "STYLE") styleTag = el;
@@ -159,7 +184,7 @@ class ImageStub {
 	set src(v) { this._src = v; this.naturalWidth = 2560; this.naturalHeight = 1440; this.complete = true; if (this.onload) this.onload(); }
 	get src() { return this._src; }
 }
-const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub, Image: ImageStub };
+const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub, Image: ImageStub, MutationObserver: MutationObserverStub };
 /** 同源 fetch stub：list 路由返回鲸鱼娘（源文字色不可直接进暗壳的回归样例）。 */
 const fetchCalls = [];
 function fetchStub(path, init) {
@@ -281,6 +306,9 @@ const allNodes = function* (node) {
 	for (const child of node.children ?? []) yield* allNodes(child);
 };
 
+const canvasEl = () => [...bodyChildrenStore].find((el) => el.className === "dsb_canvas");
+const scrimEl = () => [...bodyChildrenStore].find((el) => el.className === "dsb_scrim");
+
 // ---------- 场景 1：settings 未就绪（mirror value undefined）→ off，不抛 ----------
 exports.apply(ctx);
 const styleTags = () => (styleTag && !styleTag.removed && styleTag.tagName === "STYLE" ? [styleTag] : []);
@@ -338,11 +366,12 @@ await new Promise((resolve) => setImmediate(resolve)); // v16: applyTheme 走预
 assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel fetched the imported list");
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
-assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
-const bgSize = htmlEl.style.map.get("background-size");
-assert.ok(bgSize && bgSize.startsWith("auto, auto, ") && bgSize.includes("px"), "canvas sized in px from natural dims (subject anchored)");
-const bgPos = htmlEl.style.map.get("background-position");
-assert.ok(bgPos && /center, center, -?\d+px -?\d+px/.test(bgPos), "pixel offsets computed for subject anchoring");
+const canvas = canvasEl();
+assert.ok(canvas, "canvas img element appended to body");
+assert.equal(canvas.attrs.get("src"), "#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg", "canvas img carries builtin art URL (require.asset pipeline)");
+assert.ok(scrimEl(), "scrim overlay element appended");
+const bgColor = canvasEl().style.map.get("background-color");
+assert.ok(bgColor && bgColor.includes("13 13 14"), "letterbox band color lives on the canvas element (dark shell base)");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
@@ -352,7 +381,7 @@ assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim strength has 0.35 readability floor at v=75");
-assert.ok(styleTags()[0].textContent.includes("calc(0.9 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
+assert.ok(styleTags()[0].textContent.includes("calc(0.90 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
 assert.ok(
 	styleTags()[0].textContent.includes("html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {"),
 	"generic fallback layer rule covers imported theme ids (dark shell)",
@@ -448,7 +477,7 @@ const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
 const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");
 assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
-assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000")', "imported asset URL content-versioned for immutable caching");
+assert.equal(canvasEl().attrs.get("src"), "api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000", "imported asset URL content-versioned for immutable caching");
 
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
