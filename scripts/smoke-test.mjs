@@ -425,7 +425,7 @@ slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider tunes alphas with 0.06 floor (0.62x10/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "slider scales scrim with 0.35 readability floor");
-assert.equal(htmlEl.style.map.get("--dsb-a-side-d"), "0.350", "dark sidebar floor 0.35 at vis=90 (max visibility still reads dark)");
+assert.equal(htmlEl.style.map.get("--dsb-a-side-d"), "0.500", "dark sidebar floor 0.5 at vis=90 (near-solid over pale art)");
 formWrites.length = 0;
 
 // ---------- 场景 6c：面板只保留透出度滑杆（v10 移除位置滑杆） ----------
@@ -465,7 +465,7 @@ for (const fn of formListeners) fn();
 await new Promise((resolve) => setImmediate(resolve)); // 预解码提交
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 const sidebarFill = overrideLayer.tokens["--dsw-specific-sidebar-fill"];
-assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 35%))", "dark-shell sidebar veil: higher floor keeps it reading dark over pale art (v28)");
+assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 50%))", "dark-shell sidebar veil: near-solid, zds 0.72-0.84 parity (v29)");
 assert.equal(sidebarFill.light, "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))");
 const labels = overrideLayer.tokens["--dsw-alias-label-primary"];
 assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");

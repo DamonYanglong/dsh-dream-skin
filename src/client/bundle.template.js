@@ -40,7 +40,7 @@ const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-bas
 /** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
 /** 导入主题的默认材质 alpha 阶梯（DESIGN §5.1）。 */
-const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82, "side-l": 0.42, "side-d": 0.55 };
+const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82, "side-l": 0.42, "side-d": 0.72 };
 
 /** 文案（M2：zh/en 先行）。 */
 const LOCALE = {
@@ -208,7 +208,7 @@ const withSidebarFill = (tokens) => ({
 	// 浅壳维持轻盈。runtime 按 colorScheme 取值，切壳即时生效）
 	"--dsw-specific-sidebar-fill": {
 		light: "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))",
-		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 35%))",
+		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 50%))",
 	},
 });
 
@@ -378,9 +378,9 @@ function apply(ctx) {
 	 *  侧栏可读性由 --dsw-specific-sidebar-fill 专门保障。 */
 	const applyAlphas = (def, v) => {
 		for (const [key, d] of Object.entries({ ...DEFAULT_ALPHAS, ...(def.alphas ?? {}) })) {
-			// 底值分档：暗壳侧栏 0.35（双层≈0.58，亮画下仍读作深色侧栏）；
-			// 浅壳 0.16；其余材质 0.06（v28）
-			const floor = key === "side-d" ? 0.35 : key === "side-l" ? 0.16 : 0.06;
+			// 底值分档：暗壳侧栏 0.50（双层≈0.75，对齐 zds 暗壳侧栏 0.72-0.84
+			// 的近实底强度——亮色画下读作真正的深色侧栏）；浅壳 0.16；材质 0.06
+			const floor = key === "side-d" ? 0.5 : key === "side-l" ? 0.16 : 0.06;
 			const a = Math.max(floor, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
