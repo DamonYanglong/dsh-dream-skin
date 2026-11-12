@@ -396,9 +396,14 @@ function apply(ctx) {
 		img.id = "dsb-canvas";
 		img.className = "dsb_canvas";
 		img.alt = "";
+		// 关键布局属性内联：不再依赖样式表规则是否恰好命中（v19c 教训的
+		// 彻底版）。object-fit: cover + object-position（主题焦点）由
+		// applyTheme 按主题设置。
+		img.style.cssText = "position:fixed;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;pointer-events:none;";
 		const scrim = document.createElement("div");
 		scrim.id = "dsb-scrim";
 		scrim.className = "dsb_scrim";
+		scrim.style.cssText = "position:fixed;inset:0;z-index:-1;pointer-events:none;";
 		document.body.appendChild(scrim);
 		document.body.appendChild(img);
 		canvasEls.img = img;
@@ -406,6 +411,109 @@ function apply(ctx) {
 		return canvasEls;
 	};
 
+
+	/** 兴趣中心检测（v22）——忠实移植上游 Codex Dream Skin renderer-inject.js
+	 *  的 analyzeArt()（MIT）：96px 降采样 → 逐像素亮度/饱和度采样 → 左右 38%
+	 *  区域信息量（stddev×0.58 + 边缘密度×0.42）判定安全侧 → 显著性加权
+	 *  （亮度差 0.48 + 饱和度 0.34 + 边缘 0.28）质心为焦点 → 安全侧约束
+	 *  （安全侧在左则焦点 ≥0.64，在右则 ≤0.36）→ clamp。结果按 URL 缓存。 */
+	const interestCache = new Map();
+	const detectInterestCenter = (def) => {
+		if (interestCache.has(def.bgUrl)) return interestCache.get(def.bgUrl);
+		const result = new Promise((resolve) => {
+			const image = new Image();
+			const timer = setTimeout(() => resolve({ focusX: 0.5, focusY: 0.5 }), 6000);
+			image.onerror = () => { clearTimeout(timer); resolve({ focusX: 0.5, focusY: 0.5 }); };
+			image.onload = () => {
+				try {
+					clearTimeout(timer);
+					const ratio = image.naturalWidth / image.naturalHeight;
+					const width = Math.max(16, Math.round(ratio >= 1 ? 96 : 96 * ratio));
+					const height = Math.max(16, Math.round(ratio >= 1 ? 96 / ratio : 96));
+					const canvas = document.createElement("canvas");
+					canvas.width = width;
+					canvas.height = height;
+					const context = canvas.getContext?.("2d", { willReadFrequently: true });
+					if (!context) throw new Error("no canvas");
+					context.drawImage(image, 0, 0, width, height);
+					const data = context.getImageData(0, 0, width, height).data;
+					const samples = new Array(width * height);
+					let lightTotal = 0, count = 0;
+					for (let y = 0; y < height; y += 1) {
+						for (let x = 0; x < width; x += 1) {
+							const o = (y * width + x) * 4;
+							const rgb = { r: data[o], g: data[o + 1], b: data[o + 2] };
+							const values = [rgb.r, rgb.g, rgb.b].map((v) => v / 255);
+							const max = Math.max(...values), min = Math.min(...values);
+							const light = (max + min) / 2;
+							const saturation = max === min ? 0
+								: light > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min);
+							samples[y * width + x] = { light, saturation };
+							lightTotal += light;
+							count += 1;
+						}
+					}
+					if (!count) throw new Error("no pixels");
+					const brightness = lightTotal / count;
+					const zoneInfo = (start, end) => {
+						let total = 0, totalSq = 0, edges = 0, edgeCount = 0, pixels = 0;
+						for (let y = 0; y < height; y += 1) {
+							for (let x = start; x < end; x += 1) {
+								const sm = samples[y * width + x];
+								if (!sm) continue;
+								total += sm.light;
+								totalSq += sm.light * sm.light;
+								pixels += 1;
+								const prev = x > start ? samples[y * width + x - 1] : null;
+								const above = y > 0 ? samples[(y - 1) * width + x] : null;
+								if (prev) { edges += Math.abs(sm.light - prev.light); edgeCount += 1; }
+								if (above) { edges += Math.abs(sm.light - above.light); edgeCount += 1; }
+							}
+						}
+						const mean = pixels ? total / pixels : 0;
+						const variance = pixels ? Math.max(0, totalSq / pixels - mean * mean) : 1;
+						return Math.sqrt(variance) * 0.58 + (edgeCount ? edges / edgeCount : 1) * 0.42;
+					};
+					const zoneW = Math.max(1, Math.floor(width * 0.38));
+					const leftInfo = zoneInfo(0, zoneW);
+					const rightInfo = zoneInfo(width - zoneW, width);
+					let safeArea = "center";
+					if (leftInfo < rightInfo * 0.86) safeArea = "left";
+					else if (rightInfo < leftInfo * 0.86) safeArea = "right";
+					let saliencyTotal = 0, sx = 0, sy = 0;
+					for (let y = 0; y < height; y += 1) {
+						for (let x = 0; x < width; x += 1) {
+							const sm = samples[y * width + x];
+							if (!sm) continue;
+							const prev = x > 0 ? samples[y * width + x - 1] : null;
+							const above = y > 0 ? samples[(y - 1) * width + x] : null;
+							const edge = (prev ? Math.abs(sm.light - prev.light) : 0) +
+								(above ? Math.abs(sm.light - above.light) : 0);
+							const weight = 0.01 + Math.abs(sm.light - brightness) * 0.48 +
+								sm.saturation * 0.34 + edge * 0.28;
+							saliencyTotal += weight;
+							sx += ((x + 0.5) / width) * weight;
+							sy += ((y + 0.5) / height) * weight;
+						}
+					}
+					let focusX = saliencyTotal ? sx / saliencyTotal : 0.5;
+					let focusY = saliencyTotal ? sy / saliencyTotal : 0.5;
+					if (safeArea === "left") focusX = Math.max(0.64, focusX);
+					if (safeArea === "right") focusX = Math.min(0.36, focusX);
+					focusX = Math.min(0.88, Math.max(0.12, focusX));
+					focusY = Math.min(0.82, Math.max(0.18, focusY));
+					clearTimeout(timer);
+					resolve({ focusX, focusY, safeArea, brightness });
+				} catch {
+					clearTimeout(timer);
+					resolve({ focusX: 0.5, focusY: 0.5 });
+				}
+			};
+			image.src = def.bgUrl;
+		});
+		interestCache.set(def.bgUrl, result);
+		return result;
+	};
 
 	/** 切换防闪（v16）：新图解码完成后一次性原子提交（序号防回写）。 */
 	let applySeq = 0;
@@ -426,14 +534,17 @@ function apply(ctx) {
 		const def = themeDefOf(id);
 		if (def === undefined) return;
 		const seq = ++applySeq;
-		preloadArt(def.bgUrl).then(() => {
+		preloadArt(def.bgUrl).then(async () => {
 			if (seq !== applySeq || readTheme() !== id) return;
 			const els = ensureCanvasEls();
 			if (els.img.getAttribute("src") !== def.bgUrl) els.img.setAttribute("src", def.bgUrl);
 			root.style.setProperty("--dsb-d-rgb", def.dRgb);
 			root.style.setProperty("--dsb-l-rgb", def.lRgb);
 			// Codex 预设同款：cover + 主题焦点（缺省 50% 50% 正中间）
-			els.img.style.setProperty("object-position", `${Math.round(def.fx * 100)}% ${Math.round(def.fy * 100)}%`, "important");
+			const focus = await detectInterestCenter(def).catch(() => null);
+			const fx = focus?.focusX ?? (Number.isFinite(Number(def.fx)) ? Number(def.fx) : 0.5);
+			const fy = focus?.focusY ?? (Number.isFinite(Number(def.fy)) ? Number(def.fy) : 0.5);
+			els.img.style.setProperty("object-position", `${(fx * 100).toFixed(2)}% ${(fy * 100).toFixed(2)}%`, "important");
 			root.setAttribute("data-dsb-on", "");
 			root.setAttribute("data-dsb-theme", id);
 			applyAlphas(def, v);

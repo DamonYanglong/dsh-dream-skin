@@ -477,7 +477,7 @@ assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of the
 assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
 assert.equal(canvasEl().attrs.get("src"), "api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000", "imported asset URL content-versioned for immutable caching");
 const objPos = canvasEl().style.map.get("object-position");
-assert.equal(objPos, "50% 50%", "v21: cover + theme focus (Codex default center)");
+assert.equal(objPos, "50.00% 50.00%", "v22: cover + detected interest center (fallback center in stub)");
 
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };

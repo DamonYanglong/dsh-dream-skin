@@ -27,30 +27,11 @@
  * .dsb_scrim   其上的文字对比纱（明暗两套渐变，随壳自动切换）
  * 边带色 = html background-color（applyTheme 内联，暗壳暗带/浅壳浅带）
  * 三者均挂 html[data-dsb-on] 门控：off = 完整还原。 */
-.dsb_canvas {
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  object-fit: contain;
-  object-position: center;
-  pointer-events: none;
-  display: none;
-}
-html[data-dsb-on] .dsb_canvas {
-  display: block;
-}
+.dsb_canvas,
 .dsb_scrim {
   position: fixed;
   inset: 0;
-  z-index: -1;
   pointer-events: none;
-  display: none;
-}
-html[data-dsb-on] .dsb_scrim {
-  display: block;
-  background-repeat: no-repeat;
-  background-size: auto, auto;
-  background-position: center, center;
 }
 
 /* scrim 端点（暗壳）：底色 = colors.background 的主题暗调 */
