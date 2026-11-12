@@ -35,12 +35,12 @@ const THEMES = __THEMES_PLACEHOLDER__;
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
+const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3", "--dsb-a-side"];
 
 /** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
 /** 导入主题的默认材质 alpha 阶梯（DESIGN §5.1）。 */
-const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82 };
+const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82, side: 0.42 };
 
 /** 文案（M2：zh/en 先行）。 */
 const LOCALE = {
@@ -202,11 +202,12 @@ function derivePalettes(srcColors, baseRgb) {
  *  并与右侧主区（半透明、透出背景图）形成 zds 式的层次差。 */
 const withSidebarFill = (tokens) => ({
 	...tokens,
-	// 注意：官方侧栏有两层元素都消费此 token（sidebarCol + root/quietBars），
-	// 同位叠加；单层 0.4/0.45 → 组合 ≈ 0.6，接近 zds 的侧栏衬底强度
+	// 官方侧栏有两层元素都消费此 token（sidebarCol + root/quietBars）同位叠加。
+	// alpha 走 --dsb-a-side 随「透出度」滑杆按比例联动，底值 0.16
+	// 保证拉满时侧栏仍与主区有区分度（v27b）
 	"--dsw-specific-sidebar-fill": {
-		light: "rgb(var(--dsb-l-rgb) / 0.45)",
-		dark: "rgb(var(--dsb-d-rgb) / 0.4)",
+		light: "rgb(var(--dsb-l-rgb) / var(--dsb-a-side, 45%))",
+		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side, 42%))",
 	},
 });
 
@@ -375,8 +376,11 @@ function apply(ctx) {
 	 *  bg-layer token，0.18 的底线层层叠加会把亮画压成深灰——v15 实测）。
 	 *  侧栏可读性由 --dsw-specific-sidebar-fill 专门保障。 */
 	const applyAlphas = (def, v) => {
-		for (const [key, d] of Object.entries(def.alphas ?? DEFAULT_ALPHAS)) {
-			const a = Math.max(0.06, Math.min(0.95, (d * (100 - v)) / 45));
+		for (const [key, d] of Object.entries({ ...DEFAULT_ALPHAS, ...(def.alphas ?? {}) })) {
+			// 侧栏底值 0.16（双层有效 ≈0.29）：拉满透出度时侧栏仍保留
+			// 一层可辨识衬底，与主区保持区分度（v27b 用户决策）
+			const floor = key === "side" ? 0.16 : 0.06;
+			const a = Math.max(floor, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
 		// scrim 底线 0.35（侧栏可读性由 --dsw-specific-sidebar-fill 专门保障，
