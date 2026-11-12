@@ -129,10 +129,14 @@ const bodyEl = {
 	},
 };
 let styleTag = null;
+const canvasById = new Map();
 const documentStub = {
 	head,
 	documentElement: htmlEl,
 	body: bodyEl,
+	getElementById(id) {
+		return id === "dsb-canvas" ? canvasById.get(id) : null;
+	},
 	createElement(tag) {
 		const el = {
 			tagName: tag.toUpperCase(),
@@ -158,6 +162,7 @@ const documentStub = {
 				this.isConnected = false;
 				if (this === styleTag) head.children.delete(this);
 				bodyChildrenStore.delete(this);
+				if (this.attrs.has("id")) canvasById.delete(this.attrs.get("id"));
 			},
 		};
 		if (el.tagName === "STYLE") styleTag = el;

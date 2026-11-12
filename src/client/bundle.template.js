@@ -395,6 +395,10 @@ function apply(ctx) {
 	 *  导致图片层不绘制（v14–v18 反复翻车），img 元素则保证绘制。 */
 	const canvasEls = {};
 	const ensureCanvasEls = () => {
+		// HMR 多代清理：热替换会重新物化 apply，旧代的画布/纱元素若未随
+		// dispose 清掉就会堆叠（旧定位样式污染新渲染 → 用户侧"闪烁/偏移"）
+		document.getElementById("dsb-canvas")?.remove();
+		document.getElementById("dsb-scrim")?.remove();
 		if (canvasEls.img !== undefined && canvasEls.img.isConnected) return canvasEls;
 		const img = document.createElement("img");
 		img.id = "dsb-canvas";
