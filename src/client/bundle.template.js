@@ -290,6 +290,10 @@ function apply(ctx) {
 
 	/** 导入主题表（Host list 路由填充；id -> manifest）。 */
 	const imported = new Map();
+	/** 内置主题图的版本化 URL（list 路由填充；桌面端 /plugins/ 被 forwarder
+	 *  改写 no-store → 大图每次重绘重拉 = 画布闪烁，故一律走自有 immutable 路由）。 */
+	const builtinArt = new Map();
+	const builtinUrl = (id) => builtinArt.get(id) ?? BG_URL;
 	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}&v=${encodeURIComponent(m.rev ?? "")}`;
 	/** 单飞加载：apply 物化时拉一次（v13c——此前挂在面板页 useEffect，
 	 *  而 main 席位页面只在面板打开时挂载 → 启动后列表永远为空、
@@ -302,6 +306,11 @@ function apply(ctx) {
 				imported.clear();
 				for (const m of Array.isArray(body.themes) ? body.themes : []) {
 					if (typeof m?.id === "string" && typeof m.image === "string") imported.set(m.id, m);
+				}
+				for (const b of Array.isArray(body.builtins) ? body.builtins : []) {
+					if (typeof b?.id === "string" && typeof b.rev === "string") {
+						builtinArt.set(b.id, `api/dsh-dream-skin/builtin?id=${encodeURIComponent(b.id)}&v=${encodeURIComponent(b.rev)}`);
+					}
 				}
 				// 列表到位必须补 sync：boot 时持久化的导入主题曾被静默按 off 跳过
 				sync();
@@ -316,7 +325,7 @@ function apply(ctx) {
 	function themeDefOf(id) {
 		const builtin = THEMES[id];
 		if (builtin !== undefined) {
-			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: withSidebarFill(builtin.tokens), bgUrl: BG_URL, imported: false };
+			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: withSidebarFill(builtin.tokens), bgUrl: builtinUrl(id), imported: false };
 		}
 		const m = imported.get(id);
 		if (m !== undefined) {
@@ -614,7 +623,7 @@ function apply(ctx) {
 					hint: null,
 					active: value === id,
 					onPick: () => pick(id),
-					bgUrl: BG_URL,
+					bgUrl: builtinUrl(id),
 				}),
 			),
 		];

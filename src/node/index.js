@@ -10,7 +10,8 @@ import z from "@deepseek-ai/schemastery";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** 内置主题 id（M1 只移植 gothic-void-crusade）+ 关闭态。 */
 export const THEME_IDS = ["off", "gothic-void-crusade"];
@@ -29,6 +30,33 @@ export const Config = z.object({
 
 /** 导入皮肤的用户目录（跨插件更新存活）。 */
 const SKINS_DIR = join(homedir(), ".dsh", "dream-skins");
+/** 包内内置主题图（themes/<id>/<image>）——经自有 immutable 路由供图，
+ *  绕开 Desktop forwarder 对 /plugins/ 的 no-store 改写（大图每次重绘
+ *  重新拉取 = 画布闪烁源）。 */
+const PKG_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
+const BUILTIN_DIR = join(PKG_DIR, "themes");
+const builtinMap = new Map();
+async function indexBuiltins() {
+	builtinMap.clear();
+	if (!existsSync(BUILTIN_DIR)) return;
+	for (const entry of await readdir(BUILTIN_DIR, { withFileTypes: true })) {
+		if (!entry.isDirectory() || !ID_RE.test(entry.name)) continue;
+		try {
+			const theme = JSON.parse(await readFile(join(BUILTIN_DIR, entry.name, "theme.json"), "utf8"));
+			const image = typeof theme.image === "string" ? theme.image : "";
+			if (!IMAGE_EXT_RE.test(image) || !IMAGE_RE.test(image)) continue;
+			const imagePath = join(BUILTIN_DIR, entry.name, image);
+			const bytes = await readFile(imagePath);
+			builtinMap.set(entry.name, {
+				path: imagePath,
+				ext: image.split(".").pop().toLowerCase(),
+				rev: `${bytes.length}-${Math.floor((await stat(imagePath)).mtimeMs)}`,
+			});
+		} catch {
+			/* 单个内置主题缺图跳过 */
+		}
+	}
+}
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const IMAGE_RE = /^[\w.-]+$/i;
 const IMAGE_EXT_RE = /\.(jpe?g|png|webp)$/i;
@@ -117,7 +145,11 @@ export function apply(ctx) {
 			handler: async (req, res) => {
 				if (!guard(req, res, "GET")) return;
 				try {
-					json(res, 200, { themes: await listSkins() });
+					await indexBuiltins();
+					json(res, 200, {
+						themes: await listSkins(),
+						builtins: [...builtinMap.entries()].map(([id, meta]) => ({ id, rev: meta.rev })),
+					});
 				} catch (error) {
 					json(res, 500, { error: String(error) });
 				}
@@ -141,6 +173,34 @@ export function apply(ctx) {
 					// 缩略图/画布不再每次重绘都重新拉 800KB 图（no-store 会闪）
 					res.writeHead(200, {
 						"content-type": MIME_OF[file.split(".").pop().toLowerCase()],
+						"cache-control": "public, max-age=31536000, immutable",
+					});
+					res.end(bytes);
+				} catch {
+					json(res, 404, { error: "not found" });
+				}
+			},
+		},
+		{
+			kind: "exact",
+			path: "/api/dsh-dream-skin/builtin",
+			handler: async (req, res) => {
+				if (!guard(req, res, "GET")) return;
+				try {
+					const url = new URL(req.url ?? "/", "http://x");
+					const id = url.searchParams.get("id") ?? "";
+					if (!ID_RE.test(id)) {
+						json(res, 400, { error: "bad id" });
+						return;
+					}
+					const meta = builtinMap.get(id);
+					if (meta === undefined) {
+						json(res, 404, { error: "not found" });
+						return;
+					}
+					const bytes = await readFile(meta.path);
+					res.writeHead(200, {
+						"content-type": MIME_OF[meta.ext] ?? "image/jpeg",
 						"cache-control": "public, max-age=31536000, immutable",
 					});
 					res.end(bytes);
