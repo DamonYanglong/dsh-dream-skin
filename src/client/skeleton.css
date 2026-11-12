@@ -34,6 +34,23 @@
   pointer-events: none;
 }
 
+/* 层序（双保险，内联同样携带）：画布 -2 → 纱 -1 → 应用内容 0+。
+ * 画布丢失负 z 会整体盖住 UI（v26 事故）。 */
+.dsb_canvas {
+  z-index: -2;
+}
+.dsb_scrim {
+  z-index: -1;
+}
+
+/* body/#root 透明守卫：官方 body 是不透明白底，会把负 z 层
+ * （画布/纱/侧栏文字）全部盖住——皮肤开启时强制透明（v19 重写时
+ * 误删本规则导致"只能看到图片"，v25 恢复）。 */
+html[data-dsb-on] body,
+html[data-dsb-on] #root {
+  background-color: transparent !important;
+}
+
 /* scrim 端点（暗壳）：底色 = colors.background 的主题暗调 */
 html[data-dsb-on]:has(body[data-ds-dark-theme]) {
   --dsb-hero-1: rgb(var(--dsb-d-rgb) / calc(0.90 * var(--dsb-scrim-k, 0.45)));

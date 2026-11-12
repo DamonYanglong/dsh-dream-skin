@@ -399,7 +399,7 @@ function apply(ctx) {
 		// 关键布局属性内联：不再依赖样式表规则是否恰好命中（v19c 教训的
 		// 彻底版）。object-fit: cover + object-position（主题焦点）由
 		// applyTheme 按主题设置。
-		img.style.cssText = "position:fixed;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;pointer-events:none;";
+		img.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:-2;object-fit:cover;object-position:50% 50%;pointer-events:none;";
 		const scrim = document.createElement("div");
 		scrim.id = "dsb-scrim";
 		scrim.className = "dsb_scrim";
