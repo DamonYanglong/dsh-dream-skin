@@ -377,7 +377,7 @@ assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "material tokens NOT in global override (scoped to #root instead)");
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
-assert.equal(htmlEl.style.map.get("--dsb-a-side"), "0.233", "sidebar veil scales with visibility (0.42×25/45)");
+assert.equal(htmlEl.style.map.get("--dsb-a-side-l"), "0.233", "light sidebar veil scales with visibility (0.42x25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim strength has 0.35 readability floor at v=75");
 assert.ok(styleTags()[0].textContent.includes("calc(0.90 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
@@ -425,7 +425,7 @@ slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider tunes alphas with 0.06 floor (0.62x10/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "slider scales scrim with 0.35 readability floor");
-assert.equal(htmlEl.style.map.get("--dsb-a-side"), "0.160", "sidebar floor 0.16 keeps it distinct from main at max visibility (v27b)");
+assert.equal(htmlEl.style.map.get("--dsb-a-side-d"), "0.350", "dark sidebar floor 0.35 at vis=90 (max visibility still reads dark)");
 formWrites.length = 0;
 
 // ---------- 场景 6c：面板只保留透出度滑杆（v10 移除位置滑杆） ----------
@@ -465,8 +465,8 @@ for (const fn of formListeners) fn();
 await new Promise((resolve) => setImmediate(resolve)); // 预解码提交
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 const sidebarFill = overrideLayer.tokens["--dsw-specific-sidebar-fill"];
-assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side, 42%))", "sidebar veil alpha parameterized by --dsb-a-side (follows slider, v27)");
-assert.equal(sidebarFill.light, "rgb(var(--dsb-l-rgb) / var(--dsb-a-side, 45%))");
+assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 35%))", "dark-shell sidebar veil: higher floor keeps it reading dark over pale art (v28)");
+assert.equal(sidebarFill.light, "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))");
 const labels = overrideLayer.tokens["--dsw-alias-label-primary"];
 assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");
 assert.ok(labels.dark.startsWith("hsl(") && /90\.0%/.test(labels.dark), "dark label derived at fixed readable lightness (upstream rule)");

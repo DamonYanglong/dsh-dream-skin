@@ -35,12 +35,12 @@ const THEMES = __THEMES_PLACEHOLDER__;
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3", "--dsb-a-side"];
+const CANVAS_VARS = ["--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3", "--dsb-a-side-d", "--dsb-a-side-l"];
 
 /** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
 /** 导入主题的默认材质 alpha 阶梯（DESIGN §5.1）。 */
-const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82, side: 0.42 };
+const DEFAULT_ALPHAS = { base: 0.62, 1: 0.62, 2: 0.72, 3: 0.82, "side-l": 0.42, "side-d": 0.55 };
 
 /** 文案（M2：zh/en 先行）。 */
 const LOCALE = {
@@ -203,11 +203,12 @@ function derivePalettes(srcColors, baseRgb) {
 const withSidebarFill = (tokens) => ({
 	...tokens,
 	// 官方侧栏有两层元素都消费此 token（sidebarCol + root/quietBars）同位叠加。
-	// alpha 走 --dsb-a-side 随「透出度」滑杆按比例联动，底值 0.16
-	// 保证拉满时侧栏仍与主区有区分度（v27b）
+	// alpha 随「透出度」滑杆按比例联动，且按壳分档（v28：亮色画在暗壳下
+	// 低浓度黑纱压不住底图→侧栏发亮；暗壳用更高底值保证读作"深色侧栏"，
+	// 浅壳维持轻盈。runtime 按 colorScheme 取值，切壳即时生效）
 	"--dsw-specific-sidebar-fill": {
-		light: "rgb(var(--dsb-l-rgb) / var(--dsb-a-side, 45%))",
-		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side, 42%))",
+		light: "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))",
+		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 35%))",
 	},
 });
 
@@ -377,9 +378,9 @@ function apply(ctx) {
 	 *  侧栏可读性由 --dsw-specific-sidebar-fill 专门保障。 */
 	const applyAlphas = (def, v) => {
 		for (const [key, d] of Object.entries({ ...DEFAULT_ALPHAS, ...(def.alphas ?? {}) })) {
-			// 侧栏底值 0.16（双层有效 ≈0.29）：拉满透出度时侧栏仍保留
-			// 一层可辨识衬底，与主区保持区分度（v27b 用户决策）
-			const floor = key === "side" ? 0.16 : 0.06;
+			// 底值分档：暗壳侧栏 0.35（双层≈0.58，亮画下仍读作深色侧栏）；
+			// 浅壳 0.16；其余材质 0.06（v28）
+			const floor = key === "side-d" ? 0.35 : key === "side-l" ? 0.16 : 0.06;
 			const a = Math.max(floor, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
