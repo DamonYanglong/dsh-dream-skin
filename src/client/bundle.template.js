@@ -401,19 +401,40 @@ function apply(ctx) {
 		root.style.setProperty("background-position", `center, center, ${ox.toFixed(0)}px ${oy.toFixed(0)}px`, "important");
 	};
 
-	/** 应用主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册）。 */
+	/** 切换防闪（v16）：旧实现立刻换 --dsb-bg URL → 旧图瞬间消失、新图
+	 *  未解码 → 整页闪白再跳位置。现改为：先解码新图（预热缓存，onerror
+	 *  也放行避免卡死），再一次性原子提交全部画布状态；快速连续切换以
+	 *  序号防 superseded 回写。 */
+	let applySeq = 0;
+	const artCache = new Map();
+	const preloadArt = (url) => {
+		let p = artCache.get(url);
+		if (p === undefined) {
+			p = new Promise((resolve) => {
+				const img = new Image();
+				img.onload = img.onerror = () => resolve();
+				img.src = url;
+			});
+			artCache.set(url, p);
+		}
+		return p;
+	};
 	const applyTheme = (id, v) => {
 		const def = themeDefOf(id);
 		if (def === undefined) return;
-		root.style.setProperty("--dsb-bg", `url("${def.bgUrl}")`);
-		root.style.setProperty("--dsb-d-rgb", def.dRgb);
-		root.style.setProperty("--dsb-l-rgb", def.lRgb);
-		root.setAttribute("data-dsb-on", "");
-		root.setAttribute("data-dsb-theme", id);
-		layoutCanvas(def);
-		applyAlphas(def, v);
-		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
-		current = id;
+		const seq = ++applySeq;
+		preloadArt(def.bgUrl).then(() => {
+			if (seq !== applySeq || readTheme() !== id) return;
+			root.style.setProperty("--dsb-bg", `url("${def.bgUrl}")`);
+			root.style.setProperty("--dsb-d-rgb", def.dRgb);
+			root.style.setProperty("--dsb-l-rgb", def.lRgb);
+			root.setAttribute("data-dsb-on", "");
+			root.setAttribute("data-dsb-theme", id);
+			layoutCanvas(def);
+			applyAlphas(def, v);
+			if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
+			current = id;
+		});
 	};
 
 	/** 跟随设置表单（theme / visibility 变化）。 */
@@ -441,6 +462,11 @@ function apply(ctx) {
 	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
 	sync();
 	refreshImported();
+	// 预热内置主题图（导入主题在 refreshImported 的 sync 提交时自然预热）
+	for (const id of Object.keys(THEMES)) {
+		const img = new Image();
+		img.src = BG_URL;
+	}
 
 	/* ---------- 面板组件 ---------- */
 

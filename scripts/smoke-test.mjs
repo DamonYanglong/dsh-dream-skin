@@ -334,6 +334,7 @@ assert.ok([...allNodes(pageTree)].some((n) => n.type === "input" && n.props.type
 // ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
+await new Promise((resolve) => setImmediate(resolve)); // v16: applyTheme 走预解码微任务提交
 assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel fetched the imported list");
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
@@ -432,6 +433,7 @@ assert.deepEqual(formWrites, [{ field: "theme", value: "codex-deepseek" }], "imp
 formWrites.length = 0;
 settingsValue = { theme: "codex-deepseek" };
 for (const fn of formListeners) fn();
+await new Promise((resolve) => setImmediate(resolve)); // 预解码提交
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 const sidebarFill = overrideLayer.tokens["--dsw-specific-sidebar-fill"];
 assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / 0.4)", "sidebar veil token overridden (two official layers stack; tuned for combined ~0.6)");
