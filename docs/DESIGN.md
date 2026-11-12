@@ -335,6 +335,15 @@ bundles 列表 + insert 行，参照 dsh-work-x）才可被 Loader 解析；仅 
 亮图暗壳的 scrim 底线按画布亮度自适应（0.6/0.35）。回归：冒烟测试启动竞态场景
 + 双壳截图验证（鲸鱼娘浅/暗、gothic 暗全部通过）。
 
+**v14 焦点锚定（2026-11-12）**：百分比 background-position 在宽高比变化的
+cover 裁切下守不住画面主体（窄窗口把鲸鱼娘整个挤出画面）。改为 JS 逐像素
+布局：读图片自然宽高 + 窗口尺寸，把主题焦点（fx/fy）锚到视口中央（ZOOM
+1.2× 留平移余量，clamp 防空隙），resize 监听重算；值直接写 html 内联
+background-size/position（important）——var() 代入逗号列表在 Edge 被
+判计算期无效（background-size/position 静默回退 UA 初始值，background-image
+却正常生效，纯靠截图对比定位）。鲸鱼娘 fx 修正 0.72（导入缺 art 时的兜底
+默认改 0.7）；list/asset fetch 加 cache: no-store。
+
 **冒烟测试同步升级**：react stub 实现 `createElement/useState/useEffect`
 （setState 触发重渲染），slots stub 只接受 `{name,id,order,label}`（出现越界
 注册项直接失败），行组件以**无 props** 物化渲染——v2 那类「内部契约猜错」

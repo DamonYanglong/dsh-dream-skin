@@ -27,7 +27,7 @@
  * attachment fixed = 背景钉在视口（随窗口 cover 自适应、不随内容流偏移）。 */
 html[data-dsb-on] {
   background-size: auto, auto, cover !important;
-  background-position: center, center, var(--dsb-bg-pos) !important;
+  background-position: center, center, center !important;
   background-repeat: no-repeat !important;
   background-attachment: fixed, fixed, fixed !important;
 }

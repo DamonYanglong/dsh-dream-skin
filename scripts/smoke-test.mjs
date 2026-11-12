@@ -143,13 +143,23 @@ const documentStub = {
 // ---------- run bundle ----------
 const loaded = [];
 const windowStub = {};
+windowStub.innerWidth = 1680;
+windowStub.innerHeight = 1050;
+const windowStubListeners = new Map();
+windowStub.addEventListener = (t, fn) => windowStubListeners.set(t, fn);
+windowStub.removeEventListener = (t) => windowStubListeners.delete(t);
 const requireStub = (request) => {
 	if (!(request in externals)) throw new Error(`unexpected external require: ${request}`);
 	return externals[request];
 };
 requireStub.asset = (ref) => `#asset:${ref}`;
 
-const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub };
+/** Image stub：同步 complete + 自然尺寸，立即触发 onload → layoutCanvas。 */
+class ImageStub {
+	set src(v) { this._src = v; this.naturalWidth = 2560; this.naturalHeight = 1440; this.complete = true; if (this.onload) this.onload(); }
+	get src() { return this._src; }
+}
+const context = { window: windowStub, console, Symbol, JSON, Object, Number, Math, Array, document: documentStub, fetch: fetchStub, Image: ImageStub };
 /** 同源 fetch stub：list 路由返回鲸鱼娘（源文字色不可直接进暗壳的回归样例）。 */
 const fetchCalls = [];
 function fetchStub(path, init) {
@@ -327,7 +337,10 @@ assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel f
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg")', "canvas vars live on documentElement (html consumers)");
-assert.equal(htmlEl.style.map.get("--dsb-bg-pos"), "76% 45%", "background positioned by theme focus (subject centered)");
+const bgSize = htmlEl.style.map.get("background-size");
+assert.ok(bgSize && bgSize.startsWith("auto, auto, ") && bgSize.includes("px"), "canvas sized in px from natural dims (subject anchored)");
+const bgPos = htmlEl.style.map.get("background-position");
+assert.ok(bgPos && /center, center, -?\d+px -?\d+px/.test(bgPos), "pixel offsets computed for subject anchoring");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");

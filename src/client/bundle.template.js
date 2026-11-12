@@ -35,7 +35,7 @@ const THEMES = __THEMES_PLACEHOLDER__;
 const BG_URL = __BG_URL_PLACEHOLDER__;
 
 /** 骨架 CSS 消费的 html 内联变量（teardown 时逐一清除）。 */
-const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
+const CANVAS_VARS = ["--dsb-bg", "--dsb-bg-pos", "--dsb-bg-size", "--dsb-d-rgb", "--dsb-l-rgb", "--dsb-scrim-k", "--dsb-a-base", "--dsb-a-1", "--dsb-a-2", "--dsb-a-3"];
 
 /** 背景透出度默认值（0–100；与 Host Config 默认一致）。 */
 const DEFAULT_VISIBILITY = 75;
@@ -227,7 +227,7 @@ function bufferToBase64(buffer) {
 
 /** 同源 fetch 的 JSON 封装（document-relative 路径）。 */
 async function apiJson(path, init) {
-	const response = await fetch(path, init);
+	const response = await fetch(path, { cache: "no-store", ...init });
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
 	return body;
@@ -343,6 +343,8 @@ function apply(ctx) {
 		root.removeAttribute("data-dsb-on");
 		root.removeAttribute("data-dsb-theme");
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
+		root.style.removeProperty("background-size");
+		root.style.removeProperty("background-position");
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
@@ -358,10 +360,32 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-scrim-k", k.toFixed(3));
 	};
 
-	/** 背景定位 = 主题焦点（zds 语义：focusX 把画面主体摆到视口中央；
-	 *  v12 修正：v10 的纯 center 会把偏侧构图的主体（gothic 大教堂）推向边缘）。 */
-	const applyPos = (def) => {
-		root.style.setProperty("--dsb-bg-pos", `${Math.round(def.fx * 100)}% ${Math.round(def.fy * 100)}%`);
+	/** 背景定位（v14）：按窗口尺寸 + 图片自然宽高逐像素计算，把主题焦点
+	 *  （def.fx/fy，画面主体）锚定到视口中央，并监听 resize 重算——百分比
+	 *  定位在宽高比变化时守不住主体（窄窗口会把主体挤出画面）。轻微放大
+	 *  （ZOOM 1.2×）留出平移余量，clamp 保证画布无空隙。 */
+	const ZOOM = 1.2;
+	const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+	const layoutImg = new Image();
+	let layoutPending = null;
+	const layoutCanvas = (def) => {
+		layoutPending = def;
+		if (typeof window === "undefined" || typeof Image === "undefined") return;
+		if (layoutImg.src !== def.bgUrl) {
+			layoutImg.onload = () => layoutCanvas(layoutPending);
+			layoutImg.src = def.bgUrl;
+			if (!layoutImg.complete) return;
+		}
+		if (!layoutImg.naturalWidth) return;
+		const W = window.innerWidth, H = window.innerHeight;
+		const scale = Math.max(W / layoutImg.naturalWidth, H / layoutImg.naturalHeight) * ZOOM;
+		const Ws = layoutImg.naturalWidth * scale, Hs = layoutImg.naturalHeight * scale;
+		const ox = clamp(W / 2 - Ws * def.fx, W - Ws, 0);
+		const oy = clamp(H / 2 - Hs * def.fy, H - Hs, 0);
+		// 直接写内联样式（var() 代入逗号列表在 Edge 计算期被判无效——v14 实测），
+		// important 压过官方任何 html 背景规则
+		root.style.setProperty("background-size", `auto, auto, ${Ws.toFixed(0)}px ${Hs.toFixed(0)}px`, "important");
+		root.style.setProperty("background-position", `center, center, ${ox.toFixed(0)}px ${oy.toFixed(0)}px`, "important");
 	};
 
 	/** 应用主题：画布参数 + 材质 alpha + token 覆盖层（幂等注册）。 */
@@ -373,7 +397,7 @@ function apply(ctx) {
 		root.style.setProperty("--dsb-l-rgb", def.lRgb);
 		root.setAttribute("data-dsb-on", "");
 		root.setAttribute("data-dsb-theme", id);
-		applyPos(def);
+		layoutCanvas(def);
 		applyAlphas(def, v);
 		if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 		current = id;
@@ -731,6 +755,15 @@ function apply(ctx) {
 			return true;
 		},
 	};
+
+	// 5b. 窗口自适应：resize 重算焦点锚定
+	ctx.effect(() => {
+		const relayout = () => {
+			if (layoutPending) layoutCanvas(layoutPending);
+		};
+		window.addEventListener("resize", relayout);
+		return () => window.removeEventListener("resize", relayout);
+	}, `${PACKAGE_ID}: canvas relayout`);
 
 	// 6. 兜底 teardown
 	ctx.effect(() => () => {
