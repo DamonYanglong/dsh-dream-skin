@@ -394,7 +394,7 @@ const slider = findNode(pageTree, (n) => n.type === "input" && n.props.type === 
 assert.ok(slider, "visibility slider rendered while a theme is active");
 slider.props.onChange({ target: { value: "90" } });
 assert.deepEqual(formWrites, [{ field: "visibility", value: 90 }], "slider persists through configForms");
-assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.180", "slider tunes alphas with 0.18 floor");
+assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.138", "slider tunes alphas with 0.06 floor (0.62x10/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "slider scales scrim with 0.35 readability floor");
 formWrites.length = 0;
 
@@ -433,12 +433,15 @@ formWrites.length = 0;
 settingsValue = { theme: "codex-deepseek" };
 for (const fn of formListeners) fn();
 assert.equal(overrideLayer.source, "dsh-dream-skin");
+const sidebarFill = overrideLayer.tokens["--dsw-specific-sidebar-fill"];
+assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / 0.4)", "sidebar veil token overridden (two official layers stack; tuned for combined ~0.6)");
+assert.equal(sidebarFill.light, "rgb(var(--dsb-l-rgb) / 0.45)");
 const labels = overrideLayer.tokens["--dsw-alias-label-primary"];
 assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");
 assert.ok(labels.dark.startsWith("hsl(") && /90\.0%/.test(labels.dark), "dark label derived at fixed readable lightness (upstream rule)");
 assert.equal(labels.light, "#352970", "light shell passes the dark source text through (upstream rule: lum 0.035 <= 0.62 → readable on light scrim)");
 assert.ok(!overrideLayer.tokens["--dsw-alias-label-secondary"].dark.startsWith("#030303"), "near-black muted never passes through");
-assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.600", "light art raises the dark-shell scrim floor (readability on pale art)");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim floor stays 0.35; sidebar readability is the sidebar token job (v15)");
 const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
 const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");

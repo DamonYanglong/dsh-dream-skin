@@ -197,6 +197,19 @@ function derivePalettes(srcColors, baseRgb) {
 	};
 }
 
+/** 侧栏专用衬底（官方 token：「Sidebar column and title-row background」）：
+ *  高不透明度主题色纱，与透出度滑杆解耦——侧栏可读性不随「拉满看图」牺牲，
+ *  并与右侧主区（半透明、透出背景图）形成 zds 式的层次差。 */
+const withSidebarFill = (tokens) => ({
+	...tokens,
+	// 注意：官方侧栏有两层元素都消费此 token（sidebarCol + root/quietBars），
+	// 同位叠加；单层 0.4/0.45 → 组合 ≈ 0.6，接近 zds 的侧栏衬底强度
+	"--dsw-specific-sidebar-fill": {
+		light: "rgb(var(--dsb-l-rgb) / 0.45)",
+		dark: "rgb(var(--dsb-d-rgb) / 0.4)",
+	},
+});
+
 /** 导入主题的 token 覆盖层：双壳各一套（DSH §5.1 映射 × 上游调色板）。 */
 function deriveTokens(colors, baseRgb) {
 	const p = derivePalettes(colors ?? {}, baseRgb);
@@ -303,7 +316,7 @@ function apply(ctx) {
 	function themeDefOf(id) {
 		const builtin = THEMES[id];
 		if (builtin !== undefined) {
-			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: builtin.tokens, bgUrl: BG_URL, imported: false, lightArt: false };
+			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: withSidebarFill(builtin.tokens), bgUrl: BG_URL, imported: false };
 		}
 		const m = imported.get(id);
 		if (m !== undefined) {
@@ -318,11 +331,9 @@ function apply(ctx) {
 				dRgb: hslTripletFromString(p.dark.baseTone),
 				lRgb: hslTripletFromString(p.light.baseTone),
 				alphas: DEFAULT_ALPHAS,
-				tokens: deriveTokens(m.colors ?? {}, baseRgb),
+				tokens: withSidebarFill(deriveTokens(m.colors ?? {}, baseRgb)),
 				bgUrl: importedUrl(m),
 				imported: true,
-				// 亮色画 + 暗壳的组合需要更强的 scrim 保底（否则浅底白字不可读）
-				lightArt: relLum(baseRgb) > 0.55,
 			};
 		}
 		return undefined;
@@ -348,15 +359,17 @@ function apply(ctx) {
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
-	 *  scrim 底线按画布亮度自适应——暗画 0.35；亮画（暗壳白字）0.6；
-	 *  材质 alpha 至少 0.18（卡片保留基本衬底）。 */
+	 *  scrim 底线 0.35；材质 alpha 底线 0.06（官方容器嵌套多层各自消费
+	 *  bg-layer token，0.18 的底线层层叠加会把亮画压成深灰——v15 实测）。
+	 *  侧栏可读性由 --dsw-specific-sidebar-fill 专门保障。 */
 	const applyAlphas = (def, v) => {
 		for (const [key, d] of Object.entries(def.alphas ?? DEFAULT_ALPHAS)) {
-			const a = Math.max(0.18, Math.min(0.95, (d * (100 - v)) / 45));
+			const a = Math.max(0.06, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
-		const floorK = def.lightArt ? 0.6 : 0.35;
-		const k = Math.max(floorK, (100 - Math.min(100, Math.max(0, v))) / 100);
+		// scrim 底线 0.35（侧栏可读性由 --dsw-specific-sidebar-fill 专门保障，
+		// 不再叠全局 scrim——v15 修正：双叠把亮画暗壳压成近黑）
+		const k = Math.max(0.35, (100 - Math.min(100, Math.max(0, v))) / 100);
 		root.style.setProperty("--dsb-scrim-k", k.toFixed(3));
 	};
 
