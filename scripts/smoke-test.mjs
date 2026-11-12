@@ -377,7 +377,7 @@ assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].light, "var(--dsw
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-layer-1"], undefined, "material tokens NOT in global override (scoped to #root instead)");
 assert.equal(overrideLayer.tokens["--dsw-alias-bg-base"], undefined);
 assert.equal(htmlEl.style.map.get("--dsb-a-base"), "0.344", "alpha ladder scaled by default visibility 75 (0.62×25/45)");
-assert.equal(htmlEl.style.map.get("--dsb-a-side-l"), "0.233", "light sidebar veil scales with visibility (0.42x25/45)");
+assert.equal(htmlEl.style.map.get("--dsb-a-side-l"), "0.233", "light sidebar veil scales with visibility (0.55x25/45, v29 leftover base)");
 assert.equal(htmlEl.style.map.get("--dsb-a-3"), "0.456", "higher layers keep more opacity (0.82×25/45)");
 assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim strength has 0.35 readability floor at v=75");
 assert.ok(styleTags()[0].textContent.includes("calc(0.90 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
@@ -466,7 +466,7 @@ await new Promise((resolve) => setImmediate(resolve)); // 预解码提交
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 const sidebarFill = overrideLayer.tokens["--dsw-specific-sidebar-fill"];
 assert.equal(sidebarFill.dark, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 50%))", "dark-shell sidebar veil: near-solid, zds 0.72-0.84 parity (v29)");
-assert.equal(sidebarFill.light, "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))");
+assert.equal(sidebarFill.light, "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-l, 28%))", "light shell also uses dark-tone veil (dark sidebar + light content)");
 const labels = overrideLayer.tokens["--dsw-alias-label-primary"];
 assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");
 assert.ok(labels.dark.startsWith("hsl(") && /90\.0%/.test(labels.dark), "dark label derived at fixed readable lightness (upstream rule)");

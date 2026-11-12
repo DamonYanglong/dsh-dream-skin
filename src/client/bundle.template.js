@@ -203,11 +203,10 @@ function derivePalettes(srcColors, baseRgb) {
 const withSidebarFill = (tokens) => ({
 	...tokens,
 	// 官方侧栏有两层元素都消费此 token（sidebarCol + root/quietBars）同位叠加。
-	// alpha 随「透出度」滑杆按比例联动，且按壳分档（v28：亮色画在暗壳下
-	// 低浓度黑纱压不住底图→侧栏发亮；暗壳用更高底值保证读作"深色侧栏"，
-	// 浅壳维持轻盈。runtime 按 colorScheme 取值，切壳即时生效）
+	// alpha 随「透出度」滑杆按比例联动，两壳都用主题暗调纱（v30：macOS
+	// "深色侧栏+浅色内容"经典布局，左暗右亮；浅壳浓度较低保深色文字可读）
 	"--dsw-specific-sidebar-fill": {
-		light: "rgb(var(--dsb-l-rgb) / var(--dsb-a-side-l, 16%))",
+		light: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-l, 28%))",
 		dark: "rgb(var(--dsb-d-rgb) / var(--dsb-a-side-d, 50%))",
 	},
 });
@@ -380,7 +379,7 @@ function apply(ctx) {
 		for (const [key, d] of Object.entries({ ...DEFAULT_ALPHAS, ...(def.alphas ?? {}) })) {
 			// 底值分档：暗壳侧栏 0.50（双层≈0.75，对齐 zds 暗壳侧栏 0.72-0.84
 			// 的近实底强度——亮色画下读作真正的深色侧栏）；浅壳 0.16；材质 0.06
-			const floor = key === "side-d" ? 0.5 : key === "side-l" ? 0.16 : 0.06;
+			const floor = key === "side-d" ? 0.5 : key === "side-l" ? 0.18 : 0.06;
 			const a = Math.max(floor, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
