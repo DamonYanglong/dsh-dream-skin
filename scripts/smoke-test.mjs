@@ -172,6 +172,7 @@ function fetchStub(path, init) {
 					id: "codex-deepseek",
 					name: "DeepSeek-鲸鱼娘",
 					image: "background.jpg",
+					rev: "807018-1700000000000",
 					colors: { background: "#cdd7e1", text: "#352970", muted: "#030303", accent: "#bf7a40" },
 				},
 			],
@@ -442,7 +443,7 @@ const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
 const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");
 assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
-assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg")', "imported asset URL via own Host route (not require.asset pipeline)");
+assert.equal(htmlEl.style.map.get("--dsb-bg"), 'url("api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000")', "imported asset URL content-versioned for immutable caching");
 
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };

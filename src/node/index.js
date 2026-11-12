@@ -7,7 +7,7 @@
 //    的清单/资产服务 + 导入/删除路由（skill-explorer 同款 webServer.register
 //    exact 路由，loopback-only）。
 import z from "@deepseek-ai/schemastery";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -77,7 +77,11 @@ async function listSkins() {
 		if (!entry.isDirectory() || !ID_RE.test(entry.name)) continue;
 		try {
 			const manifest = JSON.parse(await readFile(join(SKINS_DIR, entry.name, "skin.json"), "utf8"));
-			if (manifest?.id === entry.name && typeof manifest.image === "string") out.push(manifest);
+			if (manifest?.id === entry.name && typeof manifest.image === "string") {
+				const imagePath = join(SKINS_DIR, entry.name, manifest.image);
+				manifest.rev = (await readFile(imagePath)).length + "-" + Math.floor((await stat(imagePath)).mtimeMs);
+				out.push(manifest);
+			}
 		} catch {
 			/* 损坏的清单跳过，不殃及其他 */
 		}
@@ -133,7 +137,12 @@ export function apply(ctx) {
 						return;
 					}
 					const bytes = await readFile(join(SKINS_DIR, id, file));
-					res.writeHead(200, { "content-type": MIME_OF[file.split(".").pop().toLowerCase()], "cache-control": "no-store" });
+					// URL 带 &v=<rev>（清单 mtime 派生）→ 内容版本化不可变缓存，
+					// 缩略图/画布不再每次重绘都重新拉 800KB 图（no-store 会闪）
+					res.writeHead(200, {
+						"content-type": MIME_OF[file.split(".").pop().toLowerCase()],
+						"cache-control": "public, max-age=31536000, immutable",
+					});
 					res.end(bytes);
 				} catch {
 					json(res, 404, { error: "not found" });

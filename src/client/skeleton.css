@@ -204,7 +204,7 @@ html[data-dsb-on]:has([data-conversation-scroll]) {
   aspect-ratio: 16 / 9;
   border-radius: var(--dsw-radius-sm, 6px);
   background-size: cover;
-  background-position: var(--dsb-bg-pos, center);
+  background-position: center;
   background-color: var(--dsw-alias-bg-layer-2);
   display: flex;
   align-items: center;

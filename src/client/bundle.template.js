@@ -277,7 +277,7 @@ function apply(ctx) {
 
 	/** 导入主题表（Host list 路由填充；id -> manifest）。 */
 	const imported = new Map();
-	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}`;
+	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}&v=${encodeURIComponent(m.rev ?? "")}`;
 	/** 单飞加载：apply 物化时拉一次（v13c——此前挂在面板页 useEffect，
 	 *  而 main 席位页面只在面板打开时挂载 → 启动后列表永远为空、
 	 *  持久化的导入主题重启后永不生效）；面板挂载时复用同一 promise 保新鲜。 */
