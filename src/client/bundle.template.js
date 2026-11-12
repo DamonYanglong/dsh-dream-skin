@@ -405,14 +405,7 @@ function apply(ctx) {
 		canvasEls.scrim = scrim;
 		return canvasEls;
 	};
-	/** 边带色画在画布元素自身背景上（object-fit contain 的留白处显示）。
-	 *  不能挂在 html——不透明的 html 背景会盖住负 z-index 的画布/scrim
-	 *  元素（v19 实测：整页只剩边带色）。 */
-	const setBandColor = (def) => {
-		const els = ensureCanvasEls();
-		const dark = document.body?.hasAttribute("data-ds-dark-theme");
-		els.img.style.setProperty("background-color", dark ? `rgb(${def.dRgb})` : `rgb(${def.lRgb})`, "important");
-	};
+
 
 	/** 切换防闪（v16）：新图解码完成后一次性原子提交（序号防回写）。 */
 	let applySeq = 0;
@@ -439,9 +432,10 @@ function apply(ctx) {
 			if (els.img.getAttribute("src") !== def.bgUrl) els.img.setAttribute("src", def.bgUrl);
 			root.style.setProperty("--dsb-d-rgb", def.dRgb);
 			root.style.setProperty("--dsb-l-rgb", def.lRgb);
+			// Codex 预设同款：cover + 主题焦点（缺省 50% 50% 正中间）
+			els.img.style.setProperty("object-position", `${Math.round(def.fx * 100)}% ${Math.round(def.fy * 100)}%`, "important");
 			root.setAttribute("data-dsb-on", "");
 			root.setAttribute("data-dsb-theme", id);
-			setBandColor(def);
 			applyAlphas(def, v);
 			if (disposeOverride === null) disposeOverride = ctx.theme.overrideTokens(PACKAGE_ID, def.tokens);
 			current = id;
@@ -805,17 +799,6 @@ function apply(ctx) {
 			return true;
 		},
 	};
-
-	// 5b. 明暗翻转 → 边带色重算（object-fit 布局由浏览器原生自适应）
-	ctx.effect(() => {
-		const relayout = () => {
-			const def = themeDefOf(current);
-			if (def !== undefined) setBandColor(def);
-		};
-		const mo = new MutationObserver(relayout);
-		mo.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
-		return () => mo.disconnect();
-	}, `${PACKAGE_ID}: band color sync`);
 
 	// 6. 兜底 teardown
 	ctx.effect(() => () => {

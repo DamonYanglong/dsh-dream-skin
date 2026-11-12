@@ -38,7 +38,7 @@ for (const id of readdirSync(srcRoot, { withFileTypes: true }).filter((e) => e.i
 		id,
 		name: manifest.name ?? id,
 		appearance: ["dark", "light", "adaptive"].includes(manifest.appearance) ? manifest.appearance : "adaptive",
-		fx: manifest.art?.focusX ?? 0.7,
+		fx: manifest.art?.focusX ?? 0.5,
 		fy: manifest.art?.focusY ?? 0.5,
 		image: `background.${ext}`,
 		colors: {

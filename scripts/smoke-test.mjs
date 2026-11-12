@@ -370,8 +370,6 @@ const canvas = canvasEl();
 assert.ok(canvas, "canvas img element appended to body");
 assert.equal(canvas.attrs.get("src"), "#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg", "canvas img carries builtin art URL (require.asset pipeline)");
 assert.ok(scrimEl(), "scrim overlay element appended");
-const bgColor = canvasEl().style.map.get("background-color");
-assert.ok(bgColor && bgColor.includes("13 13 14"), "letterbox band color lives on the canvas element (dark shell base)");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
@@ -478,6 +476,8 @@ const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");
 assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
 assert.equal(canvasEl().attrs.get("src"), "api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000", "imported asset URL content-versioned for immutable caching");
+const objPos = canvasEl().style.map.get("object-position");
+assert.equal(objPos, "50% 50%", "v21: cover + theme focus (Codex default center)");
 
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
