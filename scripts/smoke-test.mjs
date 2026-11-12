@@ -340,7 +340,15 @@ assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.350", "scrim strength has
 assert.ok(styleTags()[0].textContent.includes("calc(0.9 * var(--dsb-scrim-k"), "scrim endpoints consume the strength factor");
 assert.ok(
 	styleTags()[0].textContent.includes("html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {"),
-	"generic fallback layer rule covers imported theme ids",
+	"generic fallback layer rule covers imported theme ids (dark shell)",
+);
+assert.ok(
+	styleTags()[0].textContent.includes("html[data-dsb-on]:not(:has(body[data-ds-dark-theme])) #root {"),
+	"light-shell fallback layer rule exists (v13: system-following shells)",
+);
+assert.ok(
+	styleTags()[0].textContent.includes("rgb(var(--dsb-l-rgb) / var(--dsb-a-base"),
+	"light materials use the light scrim base",
 );
 assert.ok(styleTags()[0].textContent.includes("var(--dsb-a-base"), "generated rule consumes alpha vars");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "gothic-void-crusade", "row re-rendered");
@@ -389,8 +397,16 @@ assert.equal(htmlEl.style.map.size, 0, "canvas vars cleared");
 assert.equal(overrideLayer, null, "override layer removed");
 assert.equal(findNode(rowTree, byTag("select")).props.value, "off", "row back to off");
 
+// ---------- 场景 9a：启动竞态（v13 回归）——导入主题在列表返回前不应用，返回后补 sync 生效 ----------
+// 真机事故：重启后持久化的 codex-deepseek 在 boot 时列表未回，sync 静默按 off
+// 跳过且列表到位后无人再触发 → 导入主题重启后永远不生效。
+settingsValue = { theme: "codex-deepseek", visibility: 100, bgPosX: 39 };
+for (const fn of formListeners) fn(); // 列表未回时表单已推送（模拟真实时序）
+assert.equal(htmlEl.attrs.has("data-dsb-on"), false, "race window: imported theme NOT applied before list arrives");
+
 // ---------- 场景 9：导入主题双壳适配（鲸鱼娘回归：源色不直通暗壳/浅壳） ----------
 await new Promise((resolve) => setImmediate(resolve)); // flush refreshImported 链
+assert.equal(htmlEl.attrs.has("data-dsb-on"), true, "list arrival re-syncs: persisted imported theme now applied");
 rerender(pageComponent); // setImportedList 触发的重渲染
 const grids2 = [...allNodes(pageTree)].filter((n) => n.props.className === "dsb_panelGrid" && Array.isArray(n.children));
 assert.equal(grids2.length, 2, "builtin grid + imported grid");
@@ -408,6 +424,7 @@ assert.notEqual(labels.dark, "#352970", "dark label NOT the raw navy source");
 assert.ok(labels.dark.startsWith("hsl(") && /90\.0%/.test(labels.dark), "dark label derived at fixed readable lightness (upstream rule)");
 assert.equal(labels.light, "#352970", "light shell passes the dark source text through (upstream rule: lum 0.035 <= 0.62 → readable on light scrim)");
 assert.ok(!overrideLayer.tokens["--dsw-alias-label-secondary"].dark.startsWith("#030303"), "near-black muted never passes through");
+assert.equal(htmlEl.style.map.get("--dsb-scrim-k"), "0.600", "light art raises the dark-shell scrim floor (readability on pale art)");
 const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
 const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");

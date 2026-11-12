@@ -278,23 +278,32 @@ function apply(ctx) {
 	/** 导入主题表（Host list 路由填充；id -> manifest）。 */
 	const imported = new Map();
 	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}`;
-	async function refreshImported() {
-		try {
-			const body = await apiJson("api/dsh-dream-skin/list");
-			imported.clear();
-			for (const m of Array.isArray(body.themes) ? body.themes : []) {
-				if (typeof m?.id === "string" && typeof m.image === "string") imported.set(m.id, m);
+	/** 单飞加载：apply 物化时拉一次（v13c——此前挂在面板页 useEffect，
+	 *  而 main 席位页面只在面板打开时挂载 → 启动后列表永远为空、
+	 *  持久化的导入主题重启后永不生效）；面板挂载时复用同一 promise 保新鲜。 */
+	let importedPromise = null;
+	function refreshImported() {
+		importedPromise ??= (async () => {
+			try {
+				const body = await apiJson("api/dsh-dream-skin/list");
+				imported.clear();
+				for (const m of Array.isArray(body.themes) ? body.themes : []) {
+					if (typeof m?.id === "string" && typeof m.image === "string") imported.set(m.id, m);
+				}
+				// 列表到位必须补 sync：boot 时持久化的导入主题曾被静默按 off 跳过
+				sync();
+			} catch (error) {
+				reportError("import-list", error);
 			}
-		} catch (error) {
-			reportError("import-list", error);
-		}
+		})();
+		return importedPromise;
 	}
 
 	/** 统一主题定义：内置（烘焙）与导入（manifest 推导）。 */
 	function themeDefOf(id) {
 		const builtin = THEMES[id];
 		if (builtin !== undefined) {
-			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: builtin.tokens, bgUrl: BG_URL, imported: false };
+			return { id, name: builtin.name, fx: builtin.fx, fy: builtin.fy, dRgb: builtin.dRgb, lRgb: builtin.lRgb, alphas: builtin.alphas ?? DEFAULT_ALPHAS, tokens: builtin.tokens, bgUrl: BG_URL, imported: false, lightArt: false };
 		}
 		const m = imported.get(id);
 		if (m !== undefined) {
@@ -312,6 +321,8 @@ function apply(ctx) {
 				tokens: deriveTokens(m.colors ?? {}, baseRgb),
 				bgUrl: importedUrl(m),
 				imported: true,
+				// 亮色画 + 暗壳的组合需要更强的 scrim 保底（否则浅底白字不可读）
+				lightArt: relLum(baseRgb) > 0.55,
 			};
 		}
 		return undefined;
@@ -335,14 +346,15 @@ function apply(ctx) {
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
-	 *  scrim 至少保留 35%（拉满也不能让文字裸奔在图上）；
+	 *  scrim 底线按画布亮度自适应——暗画 0.35；亮画（暗壳白字）0.6；
 	 *  材质 alpha 至少 0.18（卡片保留基本衬底）。 */
 	const applyAlphas = (def, v) => {
 		for (const [key, d] of Object.entries(def.alphas ?? DEFAULT_ALPHAS)) {
 			const a = Math.max(0.18, Math.min(0.95, (d * (100 - v)) / 45));
 			root.style.setProperty(`--dsb-a-${key}`, a.toFixed(3));
 		}
-		const k = Math.max(0.35, (100 - Math.min(100, Math.max(0, v))) / 100);
+		const floorK = def.lightArt ? 0.6 : 0.35;
+		const k = Math.max(floorK, (100 - Math.min(100, Math.max(0, v))) / 100);
 		root.style.setProperty("--dsb-scrim-k", k.toFixed(3));
 	};
 
@@ -391,6 +403,7 @@ function apply(ctx) {
 	};
 	ctx.effect(() => form.subscribe(sync), `${PACKAGE_ID}: settings form mirror`);
 	sync();
+	refreshImported();
 
 	/* ---------- 面板组件 ---------- */
 
@@ -449,11 +462,9 @@ function apply(ctx) {
 		);
 		react.useEffect(() => {
 			let alive = true;
-			refreshImported()
-				.catch(() => {})
-				.finally(() => {
-					if (alive) setImportedList([...imported.values()]);
-				});
+			refreshImported().finally(() => {
+				if (alive) setImportedList([...imported.values()]);
+			});
 			return () => {
 				alive = false;
 			};

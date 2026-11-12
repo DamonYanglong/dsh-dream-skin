@@ -77,26 +77,36 @@ for (const id of themeIds) {
     delete themes[id].tokens[name];
   }
   if (decls.length > 0) {
-    layerRules.push(
-      `/* ${id} 材质半透明化（源自 dsw.json bg-* token；挂 data-dsb-theme 门控，\n * ` +
-        `#root 作用域 = 设置面板/菜单/浮层在 #root 外，保持官方材质；\n * ` +
-        `alpha 经 --dsb-a-* 由「背景透出度」实时缩放）*/\n` +
-        `html[data-dsb-on][data-dsb-theme=${JSON.stringify(id)}]:has(body[data-ds-dark-theme]) #root {\n` +
-        `${decls.join("\n")}\n}`,
-    );
+    for (const [shell, not, rgbVar] of [
+      ["暗", ":has(body[data-ds-dark-theme])", "--dsb-d-rgb"],
+      ["浅", ":not(:has(body[data-ds-dark-theme]))", "--dsb-l-rgb"],
+    ]) {
+      layerRules.push(
+        `/* ${id} 材质半透明化 · ${shell}壳（源自 dsw.json bg-* token；\n * ` +
+          `#root 作用域 = 设置面板/菜单/浮层在 #root 外，保持官方材质；\n * ` +
+          `alpha 经 --dsb-a-* 由「背景透出度」实时缩放）*/\n` +
+          `html[data-dsb-on][data-dsb-theme=${JSON.stringify(id)}]${not} #root {\n` +
+          `${decls.map((d) => d.replace("--dsb-d-rgb", rgbVar)).join("\n")}\n}`,
+      );
+    }
   }
 }
-// 通用兜底规则（不带主题 id 门控）：导入主题（运行时 id，构建期未知）走
-// 默认 alpha 阶梯；内置主题的专属规则特异性更高，仍优先。
-layerRules.push(
-  `/* 导入主题兜底：默认材质阶梯（62/62/72/82），任何 data-dsb-theme 值均命中；\n * ` +
-    `内置主题的专属规则（上方）特异性更高、覆盖本条 */\n` +
-    `html[data-dsb-on]:has(body[data-ds-dark-theme]) #root {\n` +
-    `\t--dsw-alias-bg-base: rgb(var(--dsb-d-rgb) / var(--dsb-a-base, 62%));\n` +
-    `\t--dsw-alias-bg-layer-1: rgb(var(--dsb-d-rgb) / var(--dsb-a-1, 62%));\n` +
-    `\t--dsw-alias-bg-layer-2: rgb(var(--dsb-d-rgb) / var(--dsb-a-2, 72%));\n` +
-    `\t--dsw-alias-bg-layer-3: rgb(var(--dsb-d-rgb) / var(--dsb-a-3, 82%));\n}`,
-);
+// 通用兜底规则（不带主题 id 门控；暗/浅壳各一）：导入主题（运行时 id，构建期
+// 未知）走默认 alpha 阶梯；内置主题的专属规则特异性更高，仍优先。
+for (const [shell, not, rgbVar] of [
+  ["暗", ":has(body[data-ds-dark-theme])", "--dsb-d-rgb"],
+  ["浅", ":not(:has(body[data-ds-dark-theme]))", "--dsb-l-rgb"],
+]) {
+  layerRules.push(
+    `/* 导入主题兜底 · ${shell}壳：默认材质阶梯（62/62/72/82）；\n * ` +
+      `内置主题的专属规则（上方）特异性更高、覆盖本条 */\n` +
+      `html[data-dsb-on]${not} #root {\n` +
+      `\t--dsw-alias-bg-base: rgb(var(${rgbVar}) / var(--dsb-a-base, 62%));\n` +
+      `\t--dsw-alias-bg-layer-1: rgb(var(${rgbVar}) / var(--dsb-a-1, 62%));\n` +
+      `\t--dsw-alias-bg-layer-2: rgb(var(${rgbVar}) / var(--dsb-a-2, 72%));\n` +
+      `\t--dsw-alias-bg-layer-3: rgb(var(${rgbVar}) / var(--dsb-a-3, 82%));\n}`,
+  );
+}
 
 // ---------- 资产 ----------
 const outLib = join(root, "lib");

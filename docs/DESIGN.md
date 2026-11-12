@@ -164,8 +164,9 @@ client-modules 接受，再决定自建工具链还是直接借 dsh 仓库的构
 ### 5.2 明暗双值规则
 
 - 暗壳值：直接用主题暗色推导（zds `html.dark` 块）。
-- 浅壳值：用 zds `html:not(.dark)` 块；主题只有暗套时（如 gothic-void-crusade 声明 dark），
-  浅壳输出 = 官方浅色 token 原样保留（**不覆盖**），scrim 浅段退化为中性米白（zds 已有先例值）。
+- 浅壳值：用 zds `html:not(.dark)` 块。~~主题只有暗套时浅壳输出 = 官方原值保留~~
+  （v13 修正：该规则只适用于"用户永远暗壳"的假设；system 跟随 morning/午后切换壳后，
+  材质/scrim 规则必须暗、浅两套都生成——亮图暗壳还要按画布亮度抬高 scrim 底线）。
 - 主题声明 `adaptive` 时双套齐全才允许发布，构建期校验。
 
 ### 5.3 兜底顺序
@@ -325,6 +326,14 @@ bundles 列表 + insert 行，参照 dsh-work-x）才可被 Loader 解析；仅 
    ui-settings-general 自己的 `welcomeNoticeVersion` 就是这个模式的官方范例）。
 3. 皮肤引擎（骨架样式表 + `overrideTokens` + `--dsb-*` 画布变量 + `off` 完整还原）
    自 M1 起未变；v4 只重写了设置行与清理了诊断产物。
+
+**v13 真机双壳修正（2026-11-12）**：用户报告"切皮肤只有侧栏生效"。自截图管线
+复现 = 浅壳下材质规则全不命中（v1–v12 只生成暗壳规则）；补浅壳变体后又暴露
+**启动竞态**：`refreshImported` 挂在面板页 useEffect，而 main 席位页面只在面板
+打开时挂载 → 启动后导入列表永远为空 → 持久化的导入主题被静默按 off 跳过。
+修复：列表加载提升到 apply()（单飞 promise，面板挂载复用）+ 列表到位补 sync；
+亮图暗壳的 scrim 底线按画布亮度自适应（0.6/0.35）。回归：冒烟测试启动竞态场景
++ 双壳截图验证（鲸鱼娘浅/暗、gothic 暗全部通过）。
 
 **冒烟测试同步升级**：react stub 实现 `createElement/useState/useEffect`
 （setState 触发重渲染），slots stub 只接受 `{name,id,order,label}`（出现越界
