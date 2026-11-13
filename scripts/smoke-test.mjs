@@ -363,6 +363,10 @@ assert.deepEqual(activeClasses, [true, false], "off card is active initially");
 const themeCard = cardsOff[1];
 assert.ok(themeCard.children[0].props.style.backgroundImage.includes("#asset:"), "theme card thumbnail uses asset URL");
 assert.ok([...allNodes(pageTree)].some((n) => n.type === "input" && n.props.type === "file" && "webkitdirectory" in n.props), "folder import input rendered");
+assert.ok(
+	[...allNodes(pageTree)].some((n) => n.type === "input" && n.props.type === "file" && String(n.props.accept ?? "").includes(".zip")),
+	"ZIP import input rendered as the primary entry (v33)",
+);
 
 // ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };

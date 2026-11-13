@@ -55,6 +55,9 @@ const LOCALE = {
 		"panel.builtin": "内置主题",
 		"panel.imported": "导入的皮肤",
 		"panel.import": "导入皮肤",
+		"panel.import.zip": "导入 ZIP",
+		"panel.import.folder": "文件夹",
+		"panel.import.folder.hint": "选择本地主题文件夹（theme.json + 背景图）",
 		"panel.import.hint": "选择一个主题文件夹（含 theme.json 与背景图，zcode-dream-skin 格式）",
 		"panel.import.busy": "导入中…",
 		"panel.import.fail": "导入失败",
@@ -72,6 +75,9 @@ const LOCALE = {
 		"panel.builtin": "Built-in themes",
 		"panel.imported": "Imported skins",
 		"panel.import": "Import skin",
+		"panel.import.zip": "Import ZIP",
+		"panel.import.folder": "Folder",
+		"panel.import.folder.hint": "Pick a local theme folder (theme.json + background)",
 		"panel.import.hint": "Pick a theme folder (theme.json + background, zcode-dream-skin format)",
 		"panel.import.busy": "Importing…",
 		"panel.import.fail": "Import failed",
@@ -296,12 +302,14 @@ function apply(ctx) {
 	const builtinArt = new Map();
 	const builtinUrl = (id) => builtinArt.get(id) ?? BG_URL;
 	const importedUrl = (m) => `api/dsh-dream-skin/asset?id=${encodeURIComponent(m.id)}&file=${encodeURIComponent(m.image)}&v=${encodeURIComponent(m.rev ?? "")}`;
-	/** 单飞加载：apply 物化时拉一次（v13c——此前挂在面板页 useEffect，
-	 *  而 main 席位页面只在面板打开时挂载 → 启动后列表永远为空、
-	 *  持久化的导入主题重启后永不生效）；面板挂载时复用同一 promise 保新鲜。 */
-	let importedPromise = null;
+	/** 并发去重、串行重取（v33 修正：v13c 的单飞缓存把首次列表永久缓存，
+	 *  导入/删除后的 refresh 拿到的是旧 promise → map 缺新 id → 设置回显
+	 *  到达时 themeDefOf 查不到 → 新皮肤被当 off 清掉（导入后不自动选中）；
+	 *  删除后列表同样不刷新。现在每次调用都重新拉取，仅在飞行中去重）。 */
+	let importedInflight = null;
 	function refreshImported() {
-		importedPromise ??= (async () => {
+		if (importedInflight) return importedInflight;
+		importedInflight = (async () => {
 			try {
 				const body = await apiJson("api/dsh-dream-skin/list");
 				imported.clear();
@@ -317,9 +325,11 @@ function apply(ctx) {
 				sync();
 			} catch (error) {
 				reportError("import-list", error);
+			} finally {
+				importedInflight = null;
 			}
 		})();
-		return importedPromise;
+		return importedInflight;
 	}
 
 	/** 统一主题定义：内置（烘焙）与导入（manifest 推导）。 */
@@ -655,7 +665,100 @@ function apply(ctx) {
 				})
 				.catch((error) => setImportError(String(error?.message ?? error)));
 		};
-		/** 文件夹导入：theme.json + 背景图 → POST /import → 刷新 → 自动选中新皮肤。 */
+		/** 提交核心：清单 + 图片字节 → POST /import → 刷新 → 自动选中。 */
+		const submitImport = async (manifest, imageBytes, ext) => {
+			const created = await apiJson("api/dsh-dream-skin/import", {
+				method: "POST",
+				body: JSON.stringify({
+					id: manifest.id,
+					name: manifest.name,
+					appearance: manifest.appearance,
+					fx: manifest.art?.focusX,
+					fy: manifest.art?.focusY,
+					imageExt: ext,
+					imageBase64: bufferToBase64(imageBytes),
+					colors: {
+						background: manifest.colors?.background ?? manifest.derivedFrom?.averageColor,
+						text: manifest.colors?.text ?? manifest.sourceColors?.text,
+						muted: manifest.colors?.muted ?? manifest.sourceColors?.muted,
+						accent: manifest.colors?.accent ?? manifest.sourceColors?.accent,
+						line: manifest.colors?.line,
+					},
+				}),
+			});
+			await refreshImported();
+			setImportedList([...imported.values()]);
+			form.set("theme", created.id);
+		};
+
+		/** ZIP 解析（零依赖）：central directory 定位条目，method 0 直读、
+		 *  method 8 走 DecompressionStream("deflate-raw")（Chromium 103+ 内置）。
+		 *  包规范同 Codex：theme.json + 背景图位于根目录或单层顶层文件夹。 */
+		async function readZipEntries(file) {
+			const buf = new DataView(await file.arrayBuffer());
+			let eocd = -1;
+			for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65558); i--) {
+				if (buf.getUint32(i, true) === 0x06054b50) {
+					eocd = i;
+					break;
+				}
+			}
+			if (eocd < 0) throw new Error("not a zip archive");
+			const count = buf.getUint16(eocd + 10, true);
+			let ptr = buf.getUint32(eocd + 16, true);
+			const central = [];
+			for (let n = 0; n < count; n++) {
+				if (buf.getUint32(ptr, true) !== 0x02014b50) throw new Error("bad central directory");
+				const method = buf.getUint16(ptr + 10, true);
+				const csize = buf.getUint32(ptr + 20, true);
+				const nameLen = buf.getUint16(ptr + 28, true);
+				const extraLen = buf.getUint16(ptr + 30, true);
+				const commentLen = buf.getUint16(ptr + 32, true);
+				const localOff = buf.getUint32(ptr + 42, true);
+				const name = new TextDecoder().decode(new Uint8Array(buf.buffer, ptr + 46, nameLen));
+				if (!name.endsWith("/")) central.push({ name, method, csize, localOff });
+				ptr += 46 + nameLen + extraLen + commentLen;
+			}
+			const entries = new Map();
+			for (const e of central) {
+				const lp = e.localOff;
+				if (buf.getUint32(lp, true) !== 0x04034b50) throw new Error("bad local header");
+				const lname = buf.getUint16(lp + 26, true);
+				const lextra = buf.getUint16(lp + 28, true);
+				const start = lp + 30 + lname + lextra;
+				const raw = new Uint8Array(buf.buffer, start, e.csize);
+				if (e.method === 0) entries.set(e.name, raw);
+				else if (e.method === 8) {
+					const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+					entries.set(e.name, new Uint8Array(await new Response(stream).arrayBuffer()));
+				} else throw new Error(`unsupported compression method ${e.method}`);
+			}
+			return entries;
+		}
+
+		/** ZIP 导入（主入口）。 */
+		const importZip = async (zipFile) => {
+			setImportBusy(true);
+			setImportError(null);
+			try {
+				const entries = await readZipEntries(zipFile);
+				const names = [...entries.keys()];
+				const findEntry = (target) => names.find((n) => n === target || n.endsWith("/" + target));
+				const jsonName = findEntry("theme.json") ?? names.find((n) => n.endsWith(".json"));
+				if (jsonName === undefined) throw new Error(t("panel.import.hint"));
+				const manifest = JSON.parse(new TextDecoder().decode(entries.get(jsonName)));
+				const imgName = (manifest.image ? findEntry(manifest.image) : undefined) ?? names.find((n) => /\.(jpe?g|png|webp)$/i.test(n));
+				if (imgName === undefined) throw new Error(t("panel.import.hint"));
+				const ext = (imgName.split(".").pop() ?? "jpg").toLowerCase();
+				await submitImport(manifest, entries.get(imgName), ext);
+			} catch (error) {
+				setImportError(String(error?.message ?? error));
+			} finally {
+				setImportBusy(false);
+			}
+		};
+
+		/** 文件夹导入（次要入口）。 */
 		const importFolder = async (fileList) => {
 			const files = [...fileList];
 			const jsonFile = files.find((f) => f.name === "theme.json") ?? files.find((f) => f.name.endsWith(".json"));
@@ -670,28 +773,7 @@ function apply(ctx) {
 				const manifest = JSON.parse(await jsonFile.text());
 				const imageBuffer = await imageFile.arrayBuffer();
 				const ext = (imageFile.name.split(".").pop() ?? "jpg").toLowerCase();
-				const created = await apiJson("api/dsh-dream-skin/import", {
-					method: "POST",
-					body: JSON.stringify({
-						id: manifest.id,
-						name: manifest.name,
-						appearance: manifest.appearance,
-						fx: manifest.art?.focusX,
-						fy: manifest.art?.focusY,
-						imageExt: ext,
-						imageBase64: bufferToBase64(imageBuffer),
-						colors: {
-							background: manifest.colors?.background ?? manifest.derivedFrom?.averageColor,
-							text: manifest.colors?.text ?? manifest.sourceColors?.text,
-							muted: manifest.colors?.muted ?? manifest.sourceColors?.muted,
-							accent: manifest.colors?.accent ?? manifest.sourceColors?.accent,
-							line: manifest.colors?.line,
-						},
-					}),
-				});
-				await refreshImported();
-				setImportedList([...imported.values()]);
-				form.set("theme", created.id);
+				await submitImport(manifest, imageBuffer, ext);
 			} catch (error) {
 				setImportError(String(error?.message ?? error));
 			} finally {
@@ -750,7 +832,21 @@ function apply(ctx) {
 				react.createElement(
 					"label",
 					{ className: importBusy ? "dsb_importButton dsb_busy" : "dsb_importButton" },
-					importBusy ? t("panel.import.busy") : t("panel.import"),
+					importBusy ? t("panel.import.busy") : t("panel.import.zip"),
+					react.createElement("input", {
+						type: "file",
+						accept: ".zip,application/zip",
+						onChange: (event) => {
+							const f = event.target.files?.[0];
+							if (f) void importZip(f);
+							event.target.value = "";
+						},
+					}),
+				),
+				react.createElement(
+					"label",
+					{ className: "dsb_importButton dsb_importFolder", title: t("panel.import.folder.hint") },
+					t("panel.import.folder"),
 					react.createElement("input", {
 						type: "file",
 						webkitdirectory: "",

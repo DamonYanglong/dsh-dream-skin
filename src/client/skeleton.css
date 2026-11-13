@@ -172,6 +172,12 @@ html[data-dsb-on]:has([data-conversation-scroll]) .dsb_scrim {
 .dsb_importButton input[type="file"] {
   display: none;
 }
+
+.dsb_importFolder {
+  padding: 4px 10px;
+  font-size: 12px;
+  opacity: 0.75;
+}
 .dsb_importError {
   margin: 0 0 12px;
   padding: 8px 12px;
