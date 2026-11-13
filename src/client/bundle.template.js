@@ -364,11 +364,12 @@ function apply(ctx) {
 		root.removeAttribute("data-dsb-on");
 		root.removeAttribute("data-dsb-theme");
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
-		root.style.removeProperty("background-color");
-		canvasEls.img?.remove();
-		canvasEls.scrim?.remove();
-		canvasEls.img = undefined;
-		canvasEls.scrim = undefined;
+		// 恢复官方 body 背景（材质/艺术图层卸下后，官方底色自然回归）
+		document.body.style.removeProperty("background-image");
+		document.body.style.removeProperty("background-size");
+		document.body.style.removeProperty("background-position");
+		document.body.style.removeProperty("background-repeat");
+		document.body.style.removeProperty("background-color");
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
@@ -393,31 +394,6 @@ function apply(ctx) {
 	 *  居中、永不裁切）+ scrim 覆盖层（文字对比纱）+ html 底色（边带）。
 	 *  此前用 html 多层 background 承载，Edge 对逗号列表 var() 的静默失效
 	 *  导致图片层不绘制（v14–v18 反复翻车），img 元素则保证绘制。 */
-	const canvasEls = {};
-	const ensureCanvasEls = () => {
-		// HMR 多代清理：热替换会重新物化 apply，旧代的画布/纱元素若未随
-		// dispose 清掉就会堆叠（旧定位样式污染新渲染 → 用户侧"闪烁/偏移"）
-		document.getElementById("dsb-canvas")?.remove();
-		document.getElementById("dsb-scrim")?.remove();
-		if (canvasEls.img !== undefined && canvasEls.img.isConnected) return canvasEls;
-		const img = document.createElement("img");
-		img.id = "dsb-canvas";
-		img.className = "dsb_canvas";
-		img.alt = "";
-		// 关键布局属性内联：不再依赖样式表规则是否恰好命中（v19c 教训的
-		// 彻底版）。object-fit: cover + object-position（主题焦点）由
-		// applyTheme 按主题设置。
-		img.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:-2;object-fit:cover;object-position:50% 50%;pointer-events:none;";
-		const scrim = document.createElement("div");
-		scrim.id = "dsb-scrim";
-		scrim.className = "dsb_scrim";
-		scrim.style.cssText = "position:fixed;inset:0;z-index:-1;pointer-events:none;";
-		document.body.appendChild(scrim);
-		document.body.appendChild(img);
-		canvasEls.img = img;
-		canvasEls.scrim = scrim;
-		return canvasEls;
-	};
 
 
 	/** 兴趣中心检测（v22）——忠实移植上游 Codex Dream Skin renderer-inject.js
@@ -544,15 +520,18 @@ function apply(ctx) {
 		const seq = ++applySeq;
 		preloadArt(def.bgUrl).then(async () => {
 			if (seq !== applySeq || readTheme() !== id) return;
-			const els = ensureCanvasEls();
-			if (els.img.getAttribute("src") !== def.bgUrl) els.img.setAttribute("src", def.bgUrl);
-			root.style.setProperty("--dsb-d-rgb", def.dRgb);
-			root.style.setProperty("--dsb-l-rgb", def.lRgb);
 			// Codex 预设同款：cover + 主题焦点（缺省 50% 50% 正中间）
 			const focus = await detectInterestCenter(def).catch(() => null);
 			const fx = focus?.focusX ?? (Number.isFinite(Number(def.fx)) ? Number(def.fx) : 0.5);
 			const fy = focus?.focusY ?? (Number.isFinite(Number(def.fy)) ? Number(def.fy) : 0.5);
-			els.img.style.setProperty("object-position", `${(fx * 100).toFixed(2)}% ${(fy * 100).toFixed(2)}%`, "important");
+			root.style.setProperty("--dsb-d-rgb", def.dRgb);
+			root.style.setProperty("--dsb-l-rgb", def.lRgb);
+			const artUrl = `url("${def.bgUrl}")`;
+			const bodyStyle = document.body.style;
+			bodyStyle.setProperty("background-image", `linear-gradient(180deg, var(--dsb-fade-1) 0%, var(--dsb-fade-2) 32%, var(--dsb-fade-3) 68%, var(--dsb-fade-4) 100%), linear-gradient(90deg, var(--dsb-shade-1) 0%, var(--dsb-shade-2) 48%, var(--dsb-shade-3) 100%), ${artUrl}`, "important");
+			bodyStyle.setProperty("background-size", "100% 100%, 100% 100%, cover", "important");
+			bodyStyle.setProperty("background-position", `50% 50%, 50% 50%, ${(fx * 100).toFixed(0)}% ${(fy * 100).toFixed(0)}%`, "important");
+			bodyStyle.setProperty("background-repeat", "no-repeat", "important");
 			root.setAttribute("data-dsb-on", "");
 			root.setAttribute("data-dsb-theme", id);
 			applyAlphas(def, v);

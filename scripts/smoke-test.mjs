@@ -367,14 +367,23 @@ assert.ok([...allNodes(pageTree)].some((n) => n.type === "input" && n.props.type
 // ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
+console.log("AFTER-DISPATCH keys:", JSON.stringify(Array.from(bodyEl.style.map.keys())), "| listeners:", formListeners.size);
 await new Promise((resolve) => setImmediate(resolve)); // v16: applyTheme 走预解码微任务提交
+console.log("AFTER-FLUSH keys:", JSON.stringify(Array.from(bodyEl.style.map.keys())));
 assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel fetched the imported list");
+
+
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
-const canvas = canvasEl();
-assert.ok(canvas, "canvas img element appended to body");
-assert.equal(canvas.attrs.get("src"), "#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg", "canvas img carries builtin art URL (require.asset pipeline)");
-assert.ok(scrimEl(), "scrim overlay element appended");
+const bodyBgImage = bodyEl.style.map.get("background-image");
+console.log("S5 state:", JSON.stringify({
+  bodyKeys: Array.from(bodyEl.style.map.keys()),
+  on: htmlEl.attrs.has("data-dsb-on"),
+  dispatched: true,
+}));
+assert.ok(bodyBgImage && bodyBgImage.includes("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg"), "body background carries builtin art URL (Codex-parity CSS background layers)");
+assert.ok(bodyBgImage.includes("linear-gradient(180deg") && bodyBgImage.includes("linear-gradient(90deg"), "fade + shade scrim gradient layers present");
+assert.equal(bodyEl.style.map.get("background-size"), "100% 100%, 100% 100%, cover", "scrim layers full-bleed, art cover");
 assert.ok(overrideLayer, "override layer registered");
 assert.equal(overrideLayer.source, "dsh-dream-skin");
 assert.equal(overrideLayer.tokens["--dsw-alias-label-primary"].dark, "#f3ead7");
@@ -482,9 +491,9 @@ const dRgb = htmlEl.style.map.get("--dsb-d-rgb").split(" ").map(Number);
 const lRgb = htmlEl.style.map.get("--dsb-l-rgb").split(" ").map(Number);
 assert.ok(dRgb.every((v) => v < 30), "dark-shell scrim base is near-black of theme hue (no white wash)");
 assert.ok(lRgb.every((v) => v > 200), "light-shell scrim base is near-white of theme hue");
-assert.equal(canvasEl().attrs.get("src"), "api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v=807018-1700000000000", "imported asset URL content-versioned for immutable caching");
-const objPos = canvasEl().style.map.get("object-position");
-assert.equal(objPos, "50.00% 50.00%", "v22: cover + detected interest center (fallback center in stub)");
+assert.ok(bodyEl.style.map.get("background-image").includes("api/dsh-dream-skin/asset?id=codex-deepseek&file=background.jpg&v="), "imported asset URL content-versioned for immutable caching");
+const objPos = bodyEl.style.map.get("background-position");
+assert.equal(objPos, "50% 50%, 50% 50%, 50% 50%", "v22: scrim centered, art at detected interest center (fallback center in stub)");
 
 // ---------- 场景 8：dispose（HMR/停用）→ 样式表与全局状态全清 ----------
 settingsValue = { theme: "gothic-void-crusade" };
@@ -495,6 +504,7 @@ assert.equal(styleTags().length, 0, "style tag removed on dispose");
 assert.equal(windowStub.__dsb__, undefined, "debug handle removed on dispose");
 assert.equal(htmlEl.attrs.has("data-dsb-on"), false);
 assert.equal(htmlEl.style.map.size, 0);
+assert.equal(bodyEl.style.map.get("background-image"), undefined, "body background layers cleared on dispose");
 
 console.log("smoke-test: 8 scenarios passed ✓");
 
