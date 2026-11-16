@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Aspecto",
+    "description": "Imagen de fondo y colores para la interfaz"
+  },
+  "panel.title": "Aspecto",
+  "panel.label": "Aspecto",
+  "panel.subtitle": "Imagen de fondo y colores",
+  "row.title": "Aspecto",
+  "panel.theme.off": "Predeterminado"
+}

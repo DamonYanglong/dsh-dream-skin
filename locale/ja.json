@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "スキン",
+    "description": "背景画像とテーマカラーでUIを彩る"
+  },
+  "panel.title": "スキン",
+  "panel.label": "スキン",
+  "panel.subtitle": "背景画像とテーマカラー",
+  "row.title": "スキン",
+  "panel.theme.off": "標準"
+}

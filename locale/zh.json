@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "皮肤",
+    "description": "为整个界面换上背景图与主题色：内置与导入皮肤、透出度与侧栏调节。"
+  },
+  "panel.title": "皮肤",
+  "panel.label": "皮肤",
+  "panel.subtitle": "为整个界面换上背景图与主题色",
+  "row.title": "皮肤",
+  "panel.theme.off": "官方默认"
+}

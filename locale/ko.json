@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "스킨",
+    "description": "배경 이미지와 테마 색상으로 UI 꾸미기"
+  },
+  "panel.title": "스킨",
+  "panel.label": "스킨",
+  "panel.subtitle": "배경 이미지와 테마 색상",
+  "row.title": "스킨",
+  "panel.theme.off": "기본"
+}

@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Habillage",
+    "description": "Image de fond et couleurs pour l'interface"
+  },
+  "panel.title": "Habillage",
+  "panel.label": "Habillage",
+  "panel.subtitle": "Image de fond et couleurs",
+  "row.title": "Habillage",
+  "panel.theme.off": "Par défaut"
+}

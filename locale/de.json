@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Skin",
+    "description": "Hintergrundgrafik und Themenfarben für die Oberfläche"
+  },
+  "panel.title": "Skin",
+  "panel.label": "Skin",
+  "panel.subtitle": "Hintergrundgrafik und Themenfarben",
+  "row.title": "Skin",
+  "panel.theme.off": "Standard"
+}

@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Aparência",
+    "description": "Imagem de fundo e cores para a interface"
+  },
+  "panel.title": "Aparência",
+  "panel.label": "Aparência",
+  "panel.subtitle": "Imagem de fundo e cores",
+  "row.title": "Aparência",
+  "panel.theme.off": "Padrão"
+}

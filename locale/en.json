@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "title": "Skin",
+    "description": "Background art and theme colors for the whole interface: built-in and imported skins, visibility and sidebar tuning."
+  },
+  "panel.title": "Skin",
+  "panel.label": "Skin",
+  "panel.subtitle": "Background art and theme colors",
+  "row.title": "Skin",
+  "panel.theme.off": "Official default"
+}
