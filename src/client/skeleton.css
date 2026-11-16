@@ -22,26 +22,10 @@
  *     portal 在 #root 之外，天然保持官方不透明材质（zcode 的设置页保留原始）。
  */
 
-/* ---- 画布（v19 元素化架构）----
- * .dsb_canvas  固定定位 <img>（object-fit: contain 原生自适应居中，永不裁切）
- * .dsb_scrim   其上的文字对比纱（明暗两套渐变，随壳自动切换）
- * 边带色 = html background-color（applyTheme 内联，暗壳暗带/浅壳浅带）
- * 三者均挂 html[data-dsb-on] 门控：off = 完整还原。 */
-.dsb_canvas,
-.dsb_scrim {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-/* 层序（双保险，内联同样携带）：画布 -2 → 纱 -1 → 应用内容 0+。
- * 画布丢失负 z 会整体盖住 UI（v26 事故）。 */
-.dsb_canvas {
-  z-index: -2;
-}
-.dsb_scrim {
-  z-index: -1;
-}
+/* ---- 画布架构（v32，Codex 同款）----
+ * 背景三层（fade 纱 + shade 纱 + 艺术图）全部画在 body 的 CSS 背景上：
+ * CSS 背景永不参与 hit-test（窗口拖拽区天然可用），也没有元素可堆叠。
+ * 兜底色 = html background-color（applyTheme 内联，v34 防白闪）。 */
 
 /* body/#root 透明守卫：官方 body 是不透明白底，会把负 z 层
  * （画布/纱/侧栏文字）全部盖住——皮肤开启时强制透明（v19 重写时

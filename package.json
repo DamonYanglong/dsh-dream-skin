@@ -29,7 +29,9 @@
     "NOTICE.md"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/build.mjs && node scripts/verify-skeleton.mjs && node scripts/verify-inline.mjs && node scripts/verify-bundle.mjs && node scripts/verify-routes.mjs && node scripts/smoke-test.mjs",
+    "routes": "node scripts/gen-route-index.mjs"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.19.0"
