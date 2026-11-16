@@ -542,6 +542,12 @@ function apply(ctx) {
 			bodyStyle.setProperty("background-size", "100% 100%, 100% 100%, cover", "important");
 			bodyStyle.setProperty("background-position", `50% 50%, 50% 50%, ${(fx * 100).toFixed(0)}% ${(fy * 100).toFixed(0)}%`, "important");
 			bodyStyle.setProperty("background-repeat", "no-repeat", "important");
+			// 画布兜底色（学 dsh-plugin-wallpaper-engine）：窗口状态切换时负 z
+			// 背景层像素可能未被合成，露出 Electron 底板白色；把根元素背景钉成
+			// 主题代表色，掉层时退化成同色底而非白闪。只写 html 不写 body
+			//（darwin 下宿主规则强制 body 透明让位窗口材质）。
+			const darkShell = document.body?.hasAttribute("data-ds-dark-theme");
+			root.style.setProperty("background-color", darkShell ? `rgb(${def.dRgb})` : `rgb(${def.lRgb})`, "important");
 			root.setAttribute("data-dsb-on", "");
 			root.setAttribute("data-dsb-theme", id);
 			applyAlphas(def, v);
