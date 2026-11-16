@@ -1,6 +1,6 @@
 {
   "name": "dsh-dream-skin",
-  "version": "0.1.0-m1",
+  "version": "0.3.0",
   "description": "Background-image skin plugin for the DeepSeek Harness web GUI: asset-pipeline backgrounds + ctx.theme override-layer token rebinding + scrim stylesheet.",
   "license": "MIT",
   "type": "module",

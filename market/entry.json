@@ -1,0 +1,11 @@
+{
+  "$comment": "plugin-market 索引条目草案（P6）——提交到市场仓库时使用；安装暂走 install_bundle <tarball|link:本仓库>。",
+  "name": "dsh-dream-skin",
+  "version": "0.3.0",
+  "title": "皮肤",
+  "description": "为整个界面换上背景图与主题色：内置与导入皮肤（ZIP）、透出度与侧栏分壳调节、双壳自适应、焦点锚定构图。",
+  "icon": "icon.svg",
+  "categories": ["theme", "appearance"],
+  "repository": "https://github.com/longfei5/dsh-dream-skin",
+  "install": "dsh plugin add dsh-dream-skin"
+}
