@@ -380,7 +380,6 @@ assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel f
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 const bodyBgImage = bodyEl.style.map.get("background-image");
-console.log("S5 state:", JSON.stringify({
   bodyKeys: Array.from(bodyEl.style.map.keys()),
   on: htmlEl.attrs.has("data-dsb-on"),
   dispatched: true,

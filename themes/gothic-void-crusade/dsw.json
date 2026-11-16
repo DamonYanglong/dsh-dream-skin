@@ -1,5 +1,4 @@
 {
-  "$comment": "gothic-void-crusade 的 DSH 覆盖层（DESIGN §5 M1 映射）。dark = 主题推导值；light = 官方原值表达式（gothic 只出暗套，浅壳零改动——DESIGN §5.2）。scrimLightRgb = zds 浅组 scrim 底色。",
   "scrimLightRgb": "248 243 230",
   "tokens": {
     "--dsw-alias-bg-base": {
@@ -44,7 +43,7 @@
     },
     "--dsw-alias-link": {
       "light": "var(--dsw-static-deepseek-500)",
-      "dark": "#d9b96e"
+      "dark": "#e3c27a"
     },
     "--dsw-alias-interactive-bg-hover": {
       "light": "#2631480f",
@@ -52,7 +51,7 @@
     },
     "--dsw-alias-scrollbar-bg-l1": {
       "light": "var(--dsw-static-neutral-200)",
-      "dark": "rgba(200, 165, 90, 0.28)"
+      "dark": "rgba(200, 165, 90, 0.26)"
     },
     "--dsw-alias-scrollbar-hover-l1": {
       "light": "var(--dsw-static-neutral-300)",
