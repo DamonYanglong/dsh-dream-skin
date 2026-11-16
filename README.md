@@ -7,7 +7,7 @@
 工程范式从「CDP 注入」迁移到「DSH 插件体系」——无调试端口、无 app 改写，
 安装即组合，卸载即还原。
 
-**状态：M2 进行中**（皮肤本体真机验证通过；设置行 v4 重写，见 [docs/DESIGN.md](docs/DESIGN.md) M2 记录）。
+**状态：M3 已完成 v0.3.0**（守卫测试族 + 模块化源码 + 色板管线 + 分发就绪，见 [docs/M3-DESIGN.md](docs/M3-DESIGN.md)）。
 
 ## 工作原理（一句话版）
 
@@ -19,7 +19,8 @@ volatile Config `theme` 字段控制开关。详见 [docs/capabilities.md](docs/
 
 ```bash
 npm install && npm run build     # lib/{index.js,client.js,assets/}
-node scripts/smoke-test.mjs      # 状态机冒烟（挂载/off/还原/清理）
+npm run verify                   # 构建 + 6 守卫 + 冒烟（一条命令全检）
+npm run routes                   # 重新生成 docs/ROUTE-INDEX.md
 ```
 
 本地挂载（开发流程）见 [scripts/README.md](scripts/README.md)。要点：dsh-hmr

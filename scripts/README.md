@@ -16,6 +16,22 @@ themes/<id>/{theme.json, dsw.json, image}
 `themes/<id>/dsw.json`（显式映射）；M2 的 theme.css 映射推导管线
 （build-themes.mjs）在此之上扩展。
 
+## verify 族（`npm run verify`）
+
+一条命令串联：build → verify-skeleton（注释平衡/var 陷阱/透明守卫）→ verify-inline（body 背景锚点/html 兜底成对）→ verify-bundle（require 白名单/ModuleLoader 契约）→ verify-routes（ROUTE-INDEX 再生 diff 零）→ verify-structure（模块纪律）→ verify-package（npm-pack 白名单/exports/分发物）→ smoke-test。
+
+## verify-visual.mjs（需本机 GUI）
+
+`node scripts/verify-visual.mjs <port> <secret>` — 自截图管线重拍 6 基线组合（3 主题 × 2 壳），像素 diff 超阈值即 fail。secret 从 `~/.dsh/.credentials.yaml` 的 `client-connection/browser-session` 记录取。
+
+## gen-route-index.mjs（`npm run routes`）
+
+从 lib/index.js 静态提取路由 → 生成 docs/ROUTE-INDEX.md（禁止手编，verify-routes 守卫零 diff）。
+
+## build-themes.mjs
+
+`node scripts/build-themes.mjs <zds-theme-dir> [--write <dsw.json>]` — zds theme.css 色板 → dsw.json（映射表参数化自 gothic 基准，键集契约 16 键）。
+
 ## smoke-test.mjs
 
 stub DOM/cordis ctx 加载 `lib/client.js`，验证状态机：

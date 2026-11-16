@@ -5,8 +5,8 @@
 > （["Everything is a Plugin"](https://github.com/deepseek-ai/deepseek-harness)），
 > 用插件资产管线发背景图、用主题 token 覆盖层换语义色、用插件样式表挂 scrim。
 
-- 版本：v0.2（M1 实现基线，机制实测校准）
-- 状态：M1 实现完成，真机验证中
+- 版本：v0.3（M3 工程化基线）
+- 状态：M3 已完成（守卫族+模块化+色板管线+分发就绪），见 [M3-DESIGN.md](M3-DESIGN.md)
 - 上游调研结论见 [capabilities.md](capabilities.md)（含 M1 校准），token 映射目标见 [token-map.md](token-map.md)
 
 ---
