@@ -374,12 +374,13 @@ function apply(ctx) {
 		root.removeAttribute("data-dsb-on");
 		root.removeAttribute("data-dsb-theme");
 		for (const name of CANVAS_VARS) root.style.removeProperty(name);
-		// 恢复官方 body 背景（材质/艺术图层卸下后，官方底色自然回归）
+		// 恢复官方背景（材质/艺术图层与 html 兜底色卸下后，官方底色自然回归）
 		document.body.style.removeProperty("background-image");
 		document.body.style.removeProperty("background-size");
 		document.body.style.removeProperty("background-position");
 		document.body.style.removeProperty("background-repeat");
 		document.body.style.removeProperty("background-color");
+		root.style.removeProperty("background-color");
 	};
 
 	/** 材质 alpha 与 scrim 强度随「透出度」缩放，但保底：
