@@ -5,7 +5,10 @@
   "title": "皮肤",
   "description": "为整个界面换上背景图与主题色：内置与导入皮肤（ZIP）、透出度与侧栏分壳调节、双壳自适应、焦点锚定构图。",
   "icon": "icon.svg",
-  "categories": ["theme", "appearance"],
-  "repository": "https://github.com/longfei5/dsh-dream-skin",
+  "categories": [
+    "theme",
+    "appearance"
+  ],
+  "repository": "https://github.com/DamonYanglong/dsh-dream-skin",
   "install": "dsh plugin add dsh-dream-skin"
 }
