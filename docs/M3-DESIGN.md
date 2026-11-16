@@ -213,6 +213,24 @@ themes/<id>/theme.css (--color-* 块)
 
 N1→verify-orchestrator；N2→verify-routes；B1→verify-skeleton；B2→verify-inline；B3→verify-structure；B4→verify-package；B5→verify-visual；E1/E2→build-themes 自测；E3→verify-routes。
 
+## 12. 已知问题：tarball 安装后设置命名空间缺失（P0）
+
+**现象**：`install_bundle <tarball>` 后路由激活（asset/list 200），但 `settings/describe`
+不含 `dsh-dream-skin` 命名空间 → configForms 镜像空 → 主题不生效。
+重启后可能恢复（待验证：本 session 的安装/卸载/重装循环可能加剧了状态脏）。
+
+**根因链**（M3 测试日 2026-11-16 定位）：
+- dsh-settings 的 `describe()` 过滤条件：`entry.fiber.state !== 2` 跳过非活跃条目
+- `schema(entry)` 读 `entry.fiber?.runtime?.Config`
+- Config 的 volatile 字段存在（3 个全部 `.volatile()`）——不是 schema 问题
+- 怀疑方向：①HMR 热替换后 fiber state 未回到 2；②pnpm 安装路径下模块解析时序差异
+  导致 Config 读到 undefined；③安装/卸载循环留下 Loader 树脏状态
+
+**下一步**：
+1. 干净虚拟机/新 profile 上单变量测试（tarball install → 不做任何卸载 → 重启 → 验证）
+2. 若新 profile 正常 → 是本 session 的状态残留，不是代码 bug
+3. 若新 profile 也失败 → 在 Host 半侧加日志（apply 时打 fiber.state）定位
+
 ## 11. 版本历史
 
 | 版本 | 日期 | 变更 |
