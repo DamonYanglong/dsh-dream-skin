@@ -371,19 +371,13 @@ assert.ok(
 // ---------- 场景 5：表单推送主题 → 画布生效 + 行/页面自订阅重渲染 ----------
 settingsValue = { theme: "gothic-void-crusade" };
 for (const fn of formListeners) fn();
-console.log("AFTER-DISPATCH keys:", JSON.stringify(Array.from(bodyEl.style.map.keys())), "| listeners:", formListeners.size);
 await new Promise((resolve) => setImmediate(resolve)); // v16: applyTheme 走预解码微任务提交
-console.log("AFTER-FLUSH keys:", JSON.stringify(Array.from(bodyEl.style.map.keys())));
 assert.ok(fetchCalls.some((c) => c.path === "api/dsh-dream-skin/list"), "panel fetched the imported list");
 
 
 assert.equal(htmlEl.attrs.get("data-dsb-on"), "", "canvas gate on");
 assert.equal(htmlEl.attrs.get("data-dsb-theme"), "gothic-void-crusade", "theme gate for scoped layer rules");
 const bodyBgImage = bodyEl.style.map.get("background-image");
-  bodyKeys: Array.from(bodyEl.style.map.keys()),
-  on: htmlEl.attrs.has("data-dsb-on"),
-  dispatched: true,
-}));
 assert.ok(bodyBgImage && bodyBgImage.includes("#asset:plugins/dsh-dream-skin/assets/background-e84cc454728d.jpg"), "body background carries builtin art URL (Codex-parity CSS background layers)");
 assert.ok(bodyBgImage.includes("linear-gradient(180deg") && bodyBgImage.includes("linear-gradient(90deg"), "fade + shade scrim gradient layers present");
 assert.equal(bodyEl.style.map.get("background-size"), "100% 100%, 100% 100%, cover", "scrim layers full-bleed, art cover");

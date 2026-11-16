@@ -36,6 +36,8 @@ ${rows}
 `;
 }
 
+// 仅作主入口时写文件（verify-routes import 复用纯函数，不重复生成）
+if (import.meta.url === `file://${process.argv[1]}`) {
 const routes = extractRoutes(host);
 if (routes.length < 4) {
   console.error(`[B] gen-route-index: 仅提取到 ${routes.length} 条路由（提取器可能需适配路由写法变化）`);
@@ -44,3 +46,4 @@ if (routes.length < 4) {
 const out = renderIndex(routes, new Date().toISOString().slice(0, 10));
 writeFileSync(join(root, "docs/ROUTE-INDEX.md"), out);
 console.log(`ROUTE-INDEX 重新生成：${routes.length} 条路由`);
+}

@@ -131,7 +131,13 @@ for (const id of themeIds) {
 const skeletonCss =
   readFileSync(join(root, "src/client/skeleton.css"), "utf8") +
   (layerRules.length > 0 ? `\n\n/* ---- 材质半透明化 · #root 作用域（构建期生成，见 skeleton.css 头注）---- */\n${layerRules.join("\n\n")}\n` : "");
-const template = readFileSync(join(root, "src/client/bundle.template.js"), "utf8");
+// M3 模块化：按 INLINE_MODULES 顺序内联 src/client/*.js（禁 import——符号经
+// 拼接作用域流动，顺序即依赖；verify-structure 守卫此纪律）
+const INLINE_MODULES = [
+  "00-const.js", "10-locale.js", "20-color.js", "30-net.js",
+  "40-engine.js", "50-components.js", "90-apply.js",
+];
+const template = INLINE_MODULES.map((m) => readFileSync(join(root, "src/client", m), "utf8")).join("\n\n");
 
 // M1：单主题共用同一张背景（THEMES 键序即 themeIds 序）。
 const bgName = emitted[0].name;

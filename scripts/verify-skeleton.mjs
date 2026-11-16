@@ -5,7 +5,7 @@
  * [V1] 违规输出 `[V1] verify-skeleton: <detail>` 并 exit 1；全绿输出 PASS 行。
  * 守卫对象：src/client/skeleton.css（源）——产物由 build 注入，源即真源。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,7 +40,8 @@ else pass("M2 透明守卫在位");
 
 // ── M3：元素形态画布的拖拽区规则（WE #120；当前 body 背景架构下为预防性在位）──
 const dragRule = /-webkit-app-region:\s*initial\s*!important/.test(css);
-const usesCanvasElement = /dsb_canvas/.test(css) || /dsb_canvas/.test(readFileSync(join(root, "src/client/bundle.template.js"), "utf8"));
+const clientSources = readdirSync(join(root, "src/client")).filter((f) => f.endsWith(".js")).map((f) => readFileSync(join(root, "src/client", f), "utf8")).join("");
+const usesCanvasElement = /dsb_canvas/.test(css) || /dsb_canvas/.test(clientSources);
 if (usesCanvasElement && !dragRule) errors.push("M3 画布元素形态存在但缺 -webkit-app-region: initial !important（拖拽区会被几何挖除）");
 else pass(`M3 拖拽区${usesCanvasElement ? "规则在位（元素形态）" : "（body 背景形态，无 hit-test 面）"}`);
 
